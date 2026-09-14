@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette — blue & gold (v1). Swap these later without touching components. */
+  --color-brand-blue: #00529f;
+  --color-brand-blue-dark: #003b73;
+  --color-brand-blue-light: #e8f0fa;
+  --color-brand-gold: #febe10;
+  --color-brand-gold-dark: #d99e00;
+  /* CTA button color - usually the same as brand-gold, but kept separate so
+     a palette whose accent is dark (green & gray) can still give its
+     buttons a readable, on-brand color without breaking every other place
+     brand-gold is used as a foreground color against brand-blue. */
+  --color-brand-cta: #febe10;
+  --color-brand-cta-dark: #d99e00;
+  --color-brand-cta-text: #111827;
+  /* Hero background-gradient color - usually just the palette's primary,
+     but kept separate so a palette whose primary is a bright/light color
+     (green & gray) can use a darker one here instead. */
+  --color-brand-hero: #00529f;
+  --color-brand-ink: #111827;
+  --color-brand-muted: #4b5563;
+  --color-brand-surface: #f9fafb;
+  --color-brand-border: #e5e7eb;
+
+  --font-display: "Playfair Display", "Georgia", serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-brand-ink);
+    background: #ffffff;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+}
