@@ -1,0 +1,106 @@
+import { useState } from "react";
+import { useListings, type InterestedTenant } from "../context/ListingsContext";
+
+// Opened from an interested-tenant row. Shows who they are and lets the
+// investor start a conversation without leaving the page - the message lands
+// in the shared Messages inbox.
+export default function TenantProfileModal({
+  tenant,
+  context,
+  onClose,
+}: {
+  tenant: InterestedTenant;
+  context: string;
+  onClose: () => void;
+}) {
+  const { sendMessage, threadFor } = useListings();
+  const [body, setBody] = useState("");
+  const [sent, setSent] = useState(false);
+  const thread = threadFor(tenant.id);
+
+  function send() {
+    if (!body.trim()) return;
+    sendMessage({ id: tenant.id, name: tenant.name, context }, body);
+    setBody("");
+    setSent(true);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-brand-border bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-sm font-bold text-white">
+              {tenant.initials}
+            </span>
+            <div>
+              <h3 className="font-display text-lg font-semibold text-brand-ink">{tenant.name}</h3>
+              <p className="text-xs text-brand-muted">{tenant.occupation}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-brand-muted hover:text-brand-ink">
+            ✕
+          </button>
+        </div>
+
+        <dl className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            ["Household", tenant.household],
+            ["Moving from", tenant.movingFrom],
+            ["Referencing", tenant.referencing],
+            ["Interested", tenant.daysAgo === 0 ? "Today" : `${tenant.daysAgo} days ago`],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg bg-brand-surface px-3 py-2">
+              <dt className="text-[10px] uppercase tracking-wide text-brand-muted">{label}</dt>
+              <dd className="text-sm font-semibold text-brand-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="mt-4 text-xs text-brand-muted">Interested in {context}</p>
+
+        {thread && thread.messages.length > 0 && (
+          <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-brand-surface p-3">
+            {thread.messages.map((m) => (
+              <p key={m.id} className="mb-1 text-xs text-brand-ink">
+                <span className="font-semibold">{m.from === "me" ? "You" : tenant.name}:</span> {m.body}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <label className="mt-4 block text-xs font-semibold text-brand-muted">
+          Message {tenant.name.split(" ")[0]}
+          <textarea
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value);
+              setSent(false);
+            }}
+            rows={3}
+            placeholder="Hi, thanks for your interest — would you like to arrange a viewing?"
+            className="mt-1 w-full resize-none rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-ink outline-none focus:border-brand-blue"
+          />
+        </label>
+        {sent && <p className="mt-1 text-xs font-medium text-emerald-700">Message sent</p>}
+
+        <div className="mt-4 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-brand-border px-4 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-surface"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={send}
+            className="flex-1 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+          >
+            Send message
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

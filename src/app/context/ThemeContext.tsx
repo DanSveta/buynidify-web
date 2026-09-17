@@ -2,10 +2,15 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { defaultPaletteId, palettes } from "../../lib/palettes";
 
 const STORAGE_KEY = "buynidify-palette";
+const DARK_KEY = "buynidify-dark";
 
 type ThemeContextValue = {
   paletteId: string;
   setPaletteId: (id: string) => void;
+  /** Dark mode is independent of the palette - any of the six palettes can
+   *  run light or dark, so this is a boolean rather than a seventh palette. */
+  dark: boolean;
+  toggleDark: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -30,6 +35,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return window.localStorage.getItem(STORAGE_KEY) || defaultPaletteId;
   });
 
+  const [dark, setDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(DARK_KEY) === "1";
+  });
+
   useEffect(() => {
     applyPalette(paletteId);
   }, [paletteId]);
@@ -39,8 +49,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(STORAGE_KEY, id);
   }
 
+  function toggleDark() {
+    setDark((d) => {
+      window.localStorage.setItem(DARK_KEY, d ? "0" : "1");
+      return !d;
+    });
+  }
+
   return (
-    <ThemeContext.Provider value={{ paletteId, setPaletteId }}>
+    <ThemeContext.Provider value={{ paletteId, setPaletteId, dark, toggleDark }}>
       {children}
     </ThemeContext.Provider>
   );

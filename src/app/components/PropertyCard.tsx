@@ -77,7 +77,6 @@ export default function PropertyCard({
           <span>{property.type}</span>
           {property.beds > 0 && <span>{property.beds} bed</span>}
           <span>{property.baths} bath</span>
-          {property.furnished && <span>Furnished</span>}
         </div>
         {actionLabel && (
           <button

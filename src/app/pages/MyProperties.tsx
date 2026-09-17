@@ -1,91 +1,61 @@
 import { useState } from "react";
 import { useRole } from "../context/RoleContext";
 import { deals } from "../data/mockData";
-import { useListings } from "../context/ListingsContext";
-import { buildMockPropertyFromUrl } from "../utils/mockFromUrl";
+import { useListings, type InterestedTenant } from "../context/ListingsContext";
+import TenantProfileModal from "../components/TenantProfileModal";
 import ListingCard from "../components/ListingCard";
 import PropertyLinkImporter from "../components/PropertyLinkImporter";
 
 function MyPropertiesInvestor() {
-  const { investorListings, addInvestorListing, interestedTenantsFor } = useListings();
-  const [link, setLink] = useState("");
-  const [error, setError] = useState("");
-
-  function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = link.trim();
-    if (!trimmed) return;
-    let parsed: URL;
-    try {
-      parsed = new URL(trimmed);
-    } catch {
-      setError("That doesn't look like a valid link. Paste the full property page URL.");
-      return;
-    }
-    setError("");
-    const mock = buildMockPropertyFromUrl(parsed.toString());
-    addInvestorListing({
-      id: `il-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      url: parsed.toString(),
-      address: mock.address,
-      city: mock.city,
-      price: mock.price,
-      beds: mock.beds,
-      type: mock.type,
-    });
-    setLink("");
-  }
+  const { investorListings, interestedTenantsFor } = useListings();
+  const [openTenant, setOpenTenant] = useState<{ tenant: InterestedTenant; context: string } | null>(null);
 
   return (
     <div>
       <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">My Properties</h1>
       <p className="mt-1 text-brand-muted">
-        Properties you've listed. See how many tenants have shown interest in each one.
+        Add a property link, run the AI rental analysis, then publish it to tenants.
       </p>
 
-      <form
-        onSubmit={handleAdd}
-        className="mt-6 flex flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-5 sm:flex-row sm:items-center"
-      >
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-brand-ink">Add a property link</p>
-          <p className="text-xs text-brand-muted">
-            Paste a link from Rightmove, Zoopla, or OnTheMarket - tenants will be able to browse it and express interest.
-          </p>
-        </div>
-        <div className="flex gap-2 sm:w-96">
-          <input
-            type="url"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder="https://rightmove.co.uk/..."
-            className="flex-1 rounded-lg border border-brand-border bg-white px-3 py-2 text-sm outline-none focus:border-brand-blue"
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
-          >
-            Add
-          </button>
-        </div>
-      </form>
-      {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+      {/* The full paste-a-link flow - same component as the Search page, so
+          a property added in either place shows up in both. This replaced a
+          cut-down link box that had no analysis or publish step. */}
+      <PropertyLinkImporter />
+
+      <h2 className="mt-10 font-display text-xl font-semibold tracking-tight text-brand-ink">
+        Listed to tenants
+      </h2>
+      <p className="mt-1 text-sm text-brand-muted">
+        Everything live on the marketplace, and how many tenants have shown interest.
+      </p>
 
       {investorListings.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
-          You haven't listed any properties yet.
+        <div className="mt-4 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
+          Nothing published yet. Add a link above, then use "Publish to tenants".
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {investorListings.map((listing) => (
             <ListingCard
               key={listing.id}
               listing={listing}
               variant="investor"
               interestedTenants={interestedTenantsFor(listing.id)}
+              listedByYou
+              onOpenTenant={(tenant) =>
+                setOpenTenant({ tenant, context: `${listing.address}, ${listing.city}` })
+              }
             />
           ))}
         </div>
+      )}
+
+      {openTenant && (
+        <TenantProfileModal
+          tenant={openTenant.tenant}
+          context={openTenant.context}
+          onClose={() => setOpenTenant(null)}
+        />
       )}
     </div>
   );

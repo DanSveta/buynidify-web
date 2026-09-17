@@ -1,5 +1,7 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { properties, tenantDemand as seedDemandData, type Deal } from "../data/mockData";
+import { usePersistedState } from "../utils/usePersistedState";
+import type { Portal } from "../utils/mockFromUrl";
 
 // Wires the two halves of the platform together across roles, which
 // previously existed as disconnected, page-local mock state:
@@ -13,7 +15,28 @@ import { properties, tenantDemand as seedDemandData, type Deal } from "../data/m
 // to real actions instead of being static per-page state that resets on
 // navigation.
 
-const fakeTenantInitials = ["J.O.", "M.K.", "A.R.", "D.P.", "S.L.", "C.B.", "T.N.", "E.W."];
+// Interested tenants are people, not initials - the investor needs enough to
+// decide whether to talk to them.
+export type TenantProfile = {
+  id: string;
+  name: string;
+  initials: string;
+  occupation: string;
+  household: string;
+  movingFrom: string;
+  referencing: "Verified" | "In progress";
+};
+
+const fakeTenants: Omit<TenantProfile, "id">[] = [
+  { name: "James Okafor", initials: "JO", occupation: "Software engineer", household: "Couple, no pets", movingFrom: "Hackney, London", referencing: "Verified" },
+  { name: "Maya Kaur", initials: "MK", occupation: "NHS doctor", household: "Single professional", movingFrom: "Leeds", referencing: "Verified" },
+  { name: "Adam Reid", initials: "AR", occupation: "Architect", household: "Family of 3", movingFrom: "Bristol", referencing: "In progress" },
+  { name: "Daniel Pereira", initials: "DP", occupation: "Finance analyst", household: "Two sharers", movingFrom: "Manchester", referencing: "Verified" },
+  { name: "Sofia Lindqvist", initials: "SL", occupation: "UX designer", household: "Single professional", movingFrom: "Edinburgh", referencing: "Verified" },
+  { name: "Chloe Bennett", initials: "CB", occupation: "Teacher", household: "Couple with baby", movingFrom: "Birmingham", referencing: "In progress" },
+  { name: "Tom Nguyen", initials: "TN", occupation: "Consultant", household: "Single professional", movingFrom: "Relocating from Berlin", referencing: "Verified" },
+  { name: "Elena Wright", initials: "EW", occupation: "Marketing lead", household: "Couple, one cat", movingFrom: "Reading", referencing: "Verified" },
+];
 
 // Deterministic "other people already interested" seeding, so numbers don't
 // jump around on every render but still look like a real, busy platform.
@@ -23,15 +46,36 @@ function seedHash(id: string): number {
   return h;
 }
 
-function seededInterestedTenants(id: string): { label: string; daysAgo: number }[] {
+export type InterestedTenant = TenantProfile & { daysAgo: number };
+
+function seededInterestedTenants(id: string): InterestedTenant[] {
   const count = seedHash(id) % 4; // 0-3 other tenants already interested
-  const list: { label: string; daysAgo: number }[] = [];
+  const list: InterestedTenant[] = [];
   for (let i = 0; i < count; i++) {
-    const nameIdx = (seedHash(id + i) + i) % fakeTenantInitials.length;
+    const idx = (seedHash(id + i) + i) % fakeTenants.length;
     const daysAgo = 1 + (seedHash(id + "d" + i) % 9);
-    list.push({ label: fakeTenantInitials[nameIdx], daysAgo });
+    list.push({ ...fakeTenants[idx], id: `${id}-t${idx}`, daysAgo });
   }
   return list;
+}
+
+const youAsTenant: TenantProfile = {
+  id: "you",
+  name: "You",
+  initials: "YOU",
+  occupation: "Your profile",
+  household: "-",
+  movingFrom: "-",
+  referencing: "Verified",
+};
+
+// Buynidify's cut: the investor is paid their asking rent, the tenant pays
+// that plus a markup, and the platform keeps the difference. Shown openly on
+// every marketplace card the way the live product does it.
+export const TENANT_MARKUP = 0.04;
+
+export function tenantPays(investorRent: number): number {
+  return Math.round(investorRent * (1 + TENANT_MARKUP));
 }
 
 export type InvestorListing = {
@@ -43,6 +87,13 @@ export type InvestorListing = {
   price: number;
   beds: number;
   type: string;
+  /** Terms set when the investor publishes to tenants. */
+  monthlyRent?: number;
+  minTenancy?: string;
+  availableFrom?: string;
+  portal?: string;
+  notes?: string;
+  accepts?: string[];
 };
 
 export type TenantDemandEntry = {
@@ -59,6 +110,20 @@ export type TenantDemandEntry = {
   targetPrice?: number; // imported entries (sale, matches the rest of the app)
 };
 
+export type Message = {
+  id: string;
+  from: "me" | "them";
+  body: string;
+  sentAt: string;
+};
+
+export type MessageThread = {
+  counterpartyId: string;
+  counterpartyName: string;
+  context: string;
+  messages: Message[];
+};
+
 export type MatchEntry = {
   id: string;
   propertyAddress: string;
@@ -67,21 +132,102 @@ export type MatchEntry = {
   tenantLabel: string;
 };
 
+// The paste-a-link cards. These live here rather than inside the importer
+// component so the same set shows on Search and My Properties, and so they
+// persist across a reload or a role switch.
+export type InvestorAnalysis = {
+  kind: "investor";
+  summary: string;
+  monthlyRent: number;
+  grossYield: number;
+  netYield: number;
+  locationScore: number;
+  rentalDemand: string;
+  timeToLet: string;
+  tenantProfile: string;
+  positives: string[];
+  consider: string[];
+  suggestions: string[];
+};
+
+export type BuyerAnalysis = {
+  kind: "buyer";
+  summary: string;
+  deposit: number;
+  upfrontCosts: number;
+  commuteScore: number;
+  amenitiesScore: number;
+  valueForMoney: string;
+  positives: string[];
+  consider: string[];
+  suggestions: string[];
+};
+
+export type Analysis = InvestorAnalysis | BuyerAnalysis;
+
+export type PublishDetails = {
+  rent: number;
+  availableFrom: string;
+  minTenancy: string;
+  notes: string;
+  /** Who the investor is happy to let to - chosen at publish time. */
+  accepts: string[];
+};
+
+export type ImportedProperty = {
+  id: string;
+  /** Which side pasted it - an investor's link is stock, a tenant's is demand. */
+  owner: "investor" | "tenant";
+  url: string;
+  portal: Portal;
+  title: string;
+  location: string;
+  price: number;
+  beds: number;
+  type: string;
+  analysis: Analysis | null;
+  showAnalysis: boolean;
+  published: PublishDetails | null;
+};
+
+const listingPortals = [
+  { name: "Rightmove", url: "https://www.rightmove.co.uk/properties/" },
+  { name: "Zoopla", url: "https://www.zoopla.co.uk/for-sale/details/" },
+  { name: "OnTheMarket", url: "https://www.onthemarket.com/details/" },
+];
+
 const seedInvestorListings: InvestorListing[] = properties
   .filter((p) => p.ownerListed)
-  .map((p) => ({
+  .map((p, i) => ({
     id: p.id,
     source: "seed",
+    // Every card names its source - seeded listings had neither portal nor
+    // url, so only imported ones were showing it.
+    portal: listingPortals[i % listingPortals.length].name,
+    url: `${listingPortals[i % listingPortals.length].url}${81000000 + i * 211}/`,
     address: p.address,
     city: p.city,
     price: p.price,
     beds: p.beds,
     type: p.type,
+    // Seeded listings get a plausible rent (~5% gross) so they carry the
+    // same rent/markup detail as anything published in-session.
+    monthlyRent: Math.round((p.price * 0.05) / 12 / 5) * 5,
+    minTenancy: "12 months",
   }));
 
-const seedTenantDemand: TenantDemandEntry[] = seedDemandData.map((d) => ({
+const seedPortals = [
+  { name: "Rightmove", url: "https://www.rightmove.co.uk/properties/" },
+  { name: "Zoopla", url: "https://www.zoopla.co.uk/for-sale/details/" },
+  { name: "OnTheMarket", url: "https://www.onthemarket.com/details/" },
+];
+
+const seedTenantDemand: TenantDemandEntry[] = seedDemandData.map((d, i) => ({
   id: d.id,
   source: "seed",
+  // Seeded demand came from a portal too - without this the card had no
+  // source name and no View listing link.
+  url: `${seedPortals[i % seedPortals.length].url}${70000000 + i * 137}/`,
   city: d.city,
   propertyType: d.propertyType,
   notes: d.notes,
@@ -94,24 +240,57 @@ const seedTenantDemand: TenantDemandEntry[] = seedDemandData.map((d) => ({
 type ListingsContextValue = {
   investorListings: InvestorListing[];
   tenantDemand: TenantDemandEntry[];
-  interestedTenantsFor: (listingId: string) => { label: string; daysAgo: number }[];
+  interestedTenantsFor: (listingId: string) => InterestedTenant[];
   hasExpressedInterest: (listingId: string) => boolean;
   expressInterestInListing: (id: string) => void;
   hasInvestorResponded: (demandId: string) => boolean;
   respondToDemand: (id: string) => void;
-  addInvestorListing: (input: { id: string; url: string; address: string; city: string; price: number; beds: number; type: string }) => void;
+  addInvestorListing: (input: { id: string; url: string; address: string; city: string; price: number; beds: number; type: string; monthlyRent?: number; minTenancy?: string; availableFrom?: string; portal?: string; notes?: string; accepts?: string[] }) => void;
   addTenantDemand: (input: { id: string; url: string; city: string; propertyType: string; targetPrice: number; minBeds: number; notes?: string }) => void;
+  updateInvestorListing: (id: string, patch: Partial<InvestorListing>) => void;
+  // Messaging between the two sides.
+  threads: MessageThread[];
+  threadFor: (counterpartyId: string) => MessageThread | undefined;
+  sendMessage: (counterparty: { id: string; name: string; context?: string }, body: string) => void;
   matches: MatchEntry[];
   matchesAsDeals: Deal[];
+  // Paste-a-link cards, shared across pages and persisted.
+  importedProperties: ImportedProperty[];
+  addImportedProperty: (property: ImportedProperty) => void;
+  updateImportedProperty: (id: string, patch: Partial<ImportedProperty>) => void;
+  removeImportedProperty: (id: string) => void;
 };
 
 const ListingsContext = createContext<ListingsContextValue | null>(null);
 
 export function ListingsProvider({ children }: { children: ReactNode }) {
-  const [importedListings, setImportedListings] = useState<InvestorListing[]>([]);
-  const [importedDemand, setImportedDemand] = useState<TenantDemandEntry[]>([]);
-  const [tenantInterestIds, setTenantInterestIds] = useState<Set<string>>(new Set());
-  const [investorResponseIds, setInvestorResponseIds] = useState<Set<string>>(new Set());
+  // All persisted, so a property added as an investor is still there after
+  // signing out and back in as a tenant. Ids are kept as arrays because Sets
+  // don't survive JSON.
+  const [importedListings, setImportedListings] = usePersistedState<InvestorListing[]>(
+    "buynidify:investor-listings",
+    []
+  );
+  const [importedDemand, setImportedDemand] = usePersistedState<TenantDemandEntry[]>(
+    "buynidify:tenant-demand",
+    []
+  );
+  const [tenantInterestList, setTenantInterestList] = usePersistedState<string[]>(
+    "buynidify:tenant-interest",
+    []
+  );
+  const [investorResponseList, setInvestorResponseList] = usePersistedState<string[]>(
+    "buynidify:investor-responses",
+    []
+  );
+  const [importedProperties, setImportedProperties] = usePersistedState<ImportedProperty[]>(
+    "buynidify:imported-properties",
+    []
+  );
+  const [threads, setThreads] = usePersistedState<MessageThread[]>("buynidify:threads", []);
+
+  const tenantInterestIds = useMemo(() => new Set(tenantInterestList), [tenantInterestList]);
+  const investorResponseIds = useMemo(() => new Set(investorResponseList), [investorResponseList]);
 
   const investorListings = useMemo(
     () => [...importedListings, ...seedInvestorListings],
@@ -122,9 +301,11 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     [importedDemand]
   );
 
-  function interestedTenantsFor(listingId: string) {
+  function interestedTenantsFor(listingId: string): InterestedTenant[] {
     const seeded = seededInterestedTenants(listingId);
-    return tenantInterestIds.has(listingId) ? [...seeded, { label: "You", daysAgo: 0 }] : seeded;
+    return tenantInterestIds.has(listingId)
+      ? [...seeded, { ...youAsTenant, daysAgo: 0 }]
+      : seeded;
   }
 
   function hasExpressedInterest(listingId: string) {
@@ -132,7 +313,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   }
 
   function expressInterestInListing(id: string) {
-    setTenantInterestIds((prev) => new Set(prev).add(id));
+    setTenantInterestList((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }
 
   function hasInvestorResponded(demandId: string) {
@@ -140,11 +321,57 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   }
 
   function respondToDemand(id: string) {
-    setInvestorResponseIds((prev) => new Set(prev).add(id));
+    setInvestorResponseList((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }
 
-  function addInvestorListing(input: { id: string; url: string; address: string; city: string; price: number; beds: number; type: string }) {
+  function addImportedProperty(property: ImportedProperty) {
+    setImportedProperties((list) => [property, ...list]);
+  }
+
+  function updateImportedProperty(id: string, patch: Partial<ImportedProperty>) {
+    setImportedProperties((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  function removeImportedProperty(id: string) {
+    setImportedProperties((list) => list.filter((p) => p.id !== id));
+    // Also retract whatever that link put into the marketplace / demand feed.
+    setImportedListings((list) => list.filter((l) => l.id !== id));
+    setImportedDemand((list) => list.filter((d) => d.id !== id));
+  }
+
+  function addInvestorListing(input: { id: string; url: string; address: string; city: string; price: number; beds: number; type: string; monthlyRent?: number; minTenancy?: string; availableFrom?: string; portal?: string; notes?: string; accepts?: string[] }) {
     setImportedListings((list) => [{ ...input, source: "imported" }, ...list]);
+  }
+
+  function updateInvestorListing(id: string, patch: Partial<InvestorListing>) {
+    setImportedListings((list) => list.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }
+
+  function threadFor(counterpartyId: string) {
+    return threads.find((t) => t.counterpartyId === counterpartyId);
+  }
+
+  function sendMessage(counterparty: { id: string; name: string; context?: string }, body: string) {
+    const text = body.trim();
+    if (!text) return;
+    setThreads((list) => {
+      const existing = list.find((t) => t.counterpartyId === counterparty.id);
+      const message = { id: `m-${Date.now()}`, from: "me" as const, body: text, sentAt: new Date().toISOString() };
+      if (existing) {
+        return list.map((t) =>
+          t.counterpartyId === counterparty.id ? { ...t, messages: [...t.messages, message] } : t
+        );
+      }
+      return [
+        {
+          counterpartyId: counterparty.id,
+          counterpartyName: counterparty.name,
+          context: counterparty.context ?? "",
+          messages: [message],
+        },
+        ...list,
+      ];
+    });
   }
 
   function addTenantDemand(input: { id: string; url: string; city: string; propertyType: string; targetPrice: number; minBeds: number; notes?: string }) {
@@ -217,8 +444,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         respondToDemand,
         addInvestorListing,
         addTenantDemand,
+        updateInvestorListing,
+        threads,
+        threadFor,
+        sendMessage,
         matches,
         matchesAsDeals,
+        importedProperties,
+        addImportedProperty,
+        updateImportedProperty,
+        removeImportedProperty,
       }}
     >
       {children}

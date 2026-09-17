@@ -37,3 +37,9 @@ dist-ssr
 ._*
 .Spotlight-V100
 .Trashes
+
+# Local animation experiments — keep out of commits until a direction is approved
+public/animations/
+scripts/create_hiw_media.py
+src/sections/HowItWorksAnimation.tsx
+src/sections/HowItWorksShowcase.tsx

@@ -1,100 +1,145 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import Button from "./Button";
-import ThemeSwitcher from "./ThemeSwitcher";
-import { ZapIcon } from "./icons";
+import { ArrowRightIcon, ZapIcon } from "./icons";
 
+// Floating glass pill rather than a full-width bar.
+//
+// Over the hero it's barely tinted, so the blurred photo shows through and
+// the pill picks up whatever is behind it - bright where the window is,
+// dark where the room is. That only works while there's a photo back there;
+// once you scroll past the hero onto the white sections, the same treatment
+// would leave white text on near-white. So the tint deepens on scroll.
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > window.innerHeight - 140);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-brand-border bg-white">
-      <div className="flex w-full items-center justify-between px-6 py-4 lg:px-14">
+    <header className="pointer-events-none fixed inset-x-0 top-16 z-50 px-4">
+      <div
+        className={`pointer-events-auto mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border py-3 pl-8 pr-3.5 shadow-2xl shadow-black/30 backdrop-blur-2xl backdrop-saturate-150 transition-all duration-300 ${
+          scrolled
+            ? "border-white/10 bg-brand-ink/90"
+            : "border-white/25 bg-black/20"
+        }`}
+      >
         <a href="#top" className="flex items-center gap-2">
-          <span className="font-display text-2xl font-semibold tracking-tight text-brand-blue">
+          {/* Cormorant is a display serif - its thick/thin contrast only
+              reads at size, so at nav scale it flattens out and stops
+              looking like the headline. Bigger and a weight lighter brings
+              the contrast back; the touch of positive tracking stops the
+              thin strokes from closing up at this size. */}
+          <span className="font-wordmark text-[2.1rem] font-medium tracking-[0.015em] leading-none text-white">
             Buynidify
           </span>
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-gold" />
         </a>
 
-        <div className="hidden items-center gap-5 md:flex">
-          {/* Relocate is a real feature, not just another link - give it the
-              same energetic treatment as the "Launch Relocate AI" button
-              itself (brand-cta pill + zap icon) so it stands out from the
-              plain nav. */}
+        <nav className="hidden items-center gap-8 md:flex">
+          <a href="#properties" className="text-[15px] text-white/70 transition-colors hover:text-white">
+            Properties
+          </a>
+          {/* Straight into the live marketplace - both sides of the platform
+              in one place. */}
+          <Link
+            to="/app/platform-listings"
+            className="text-[15px] text-white/70 transition-colors hover:text-white"
+          >
+            Platform listings
+          </Link>
+          <a href="#how-it-works" className="text-[15px] text-white/70 transition-colors hover:text-white">
+            How it works
+          </a>
+          {/* Relocate is a flagship feature, so it gets its own gold chip
+              instead of sitting flat among the other links. */}
           <a
             href="#relocate"
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-cta px-4 py-2 text-sm font-semibold text-brand-cta-text shadow-sm shadow-brand-cta/30 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-brand-cta-dark hover:shadow-lg"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-brand-gold/50 bg-brand-gold/15 px-4 py-1.5 text-[15px] font-semibold text-brand-gold transition-all duration-200 hover:border-brand-gold hover:bg-brand-gold/25"
           >
-            <ZapIcon className="h-4 w-4" />
+            <ZapIcon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
             Relocate
           </a>
+        </nav>
 
-          {/* Sign In + Get Started grouped together, kept plain so Relocate
-              is the one thing that pops. */}
-          <div className="flex items-center gap-4 border-l border-brand-border pl-5">
-            <Link
-              to="/login"
-              className="text-[15px] font-semibold text-brand-ink transition-colors hover:text-brand-blue"
-            >
-              Sign In
-            </Link>
-            <Button as={Link} to="/login" variant="secondary" className="px-6 py-3 text-[15px]">
-              Get Started
-            </Button>
-          </div>
+        <div className="flex items-center gap-4">
+          {/* Sign in sits with Get started, not out with the section links -
+              they're the two account actions. */}
+          <Link
+            to="/login"
+            className="hidden text-[15px] text-white/70 transition-colors hover:text-white sm:block"
+          >
+            Sign in
+          </Link>
+          <Link
+            to="/login"
+            className="group hidden items-center gap-2.5 rounded-full bg-white py-2 pl-5 pr-2 text-[15px] font-semibold text-brand-ink transition-all duration-200 hover:shadow-lg sm:inline-flex"
+          >
+            Get started
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink text-white transition-transform duration-200 group-hover:rotate-45">
+              <ArrowRightIcon className="h-3.5 w-3.5" />
+            </span>
+          </Link>
 
-          <div className="flex items-center gap-2 border-l border-brand-border pl-4">
-            <ThemeSwitcher />
-          </div>
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            <span className="sr-only">Menu</span>
+            <div className="space-y-1">
+              <span className="block h-0.5 w-4 bg-white" />
+              <span className="block h-0.5 w-4 bg-white" />
+              <span className="block h-0.5 w-4 bg-white" />
+            </div>
+          </button>
         </div>
-
-        <button
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-brand-border md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
-        >
-          <span className="sr-only">Menu</span>
-          <div className="space-y-1.5">
-            <span className="block h-0.5 w-5 bg-brand-ink" />
-            <span className="block h-0.5 w-5 bg-brand-ink" />
-            <span className="block h-0.5 w-5 bg-brand-ink" />
-          </div>
-        </button>
       </div>
 
       {open && (
-        <div className="border-t border-brand-border bg-white px-6 py-4 md:hidden">
+        <div className="pointer-events-auto mx-auto mt-2 max-w-6xl rounded-3xl border border-white/15 bg-brand-ink/90 p-5 backdrop-blur-xl md:hidden">
           <nav className="flex flex-col gap-4">
-            <a
-              href="#relocate"
-              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-cta px-4 py-2 text-sm font-semibold text-brand-cta-text shadow-sm shadow-brand-cta/30"
-              onClick={() => setOpen(false)}
-            >
-              <ZapIcon className="h-4 w-4" />
-              Relocate
+            <a href="#properties" className="text-sm text-white/80" onClick={() => setOpen(false)}>
+              Properties
             </a>
             <Link
-              to="/login"
-              className="text-sm font-semibold text-brand-ink"
+              to="/app/platform-listings"
+              className="text-sm text-white/80"
               onClick={() => setOpen(false)}
             >
-              Sign In
+              Platform listings
             </Link>
-            <Button
-              as={Link}
-              to="/login"
-              variant="secondary"
-              className="w-full"
+            <a href="#how-it-works" className="text-sm text-white/80" onClick={() => setOpen(false)}>
+              How it works
+            </a>
+            <a
+              href="#relocate"
+              className="inline-flex items-center gap-1.5 text-sm text-white/80"
               onClick={() => setOpen(false)}
             >
-              Get Started
-            </Button>
-            <div className="flex items-center gap-2 border-t border-brand-border pt-4">
-              <span className="text-xs font-semibold text-brand-muted">
-                Preview colors:
+              <ZapIcon className="h-3.5 w-3.5 text-brand-gold" />
+              Relocate
+            </a>
+            <Link to="/login" className="text-sm text-white/80" onClick={() => setOpen(false)}>
+              Sign in
+            </Link>
+            <Link
+              to="/login"
+              onClick={() => setOpen(false)}
+              className="mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-white py-2 pl-5 pr-2 text-sm font-semibold text-brand-ink"
+            >
+              Get started
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink text-white">
+                <ArrowRightIcon className="h-3.5 w-3.5" />
               </span>
-              <ThemeSwitcher />
-            </div>
+            </Link>
           </nav>
         </div>
       )}

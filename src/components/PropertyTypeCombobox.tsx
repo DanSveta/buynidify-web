@@ -1,19 +1,34 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "./icons";
+import { useDropDirection } from "./useDropDirection";
 import { portalPropertyTypeOptions, type PortalPropertyType } from "../lib/propertyTypes";
 
 type Props = {
   defaultValue?: PortalPropertyType;
+  /** Pass value + onChange to drive it from outside (the app's Search page
+   *  filters real results with it). Omit both and it just manages itself,
+   *  which is all the landing page needs. */
+  value?: PortalPropertyType;
+  onChange?: (value: PortalPropertyType) => void;
 };
 
-// Same 7-type list + icons as the app's Search page, in a compact
-// click-to-open dropdown that fits the hero search bar (a full icon-pill
-// grid doesn't fit inline here, so this is the same data/design in a
-// popover instead of a native <select>).
-export default function PropertyTypeCombobox({ defaultValue = "Any" }: Props) {
-  const [value, setValue] = useState<PortalPropertyType>(defaultValue);
+// Same 7-type list + icons everywhere it appears - the landing hero and the
+// app's Search page share this one component, so clicking the field gives
+// the identical popover in both places.
+export default function PropertyTypeCombobox({
+  defaultValue = "Any",
+  value: controlledValue,
+  onChange,
+}: Props) {
+  const [uncontrolled, setUncontrolled] = useState<PortalPropertyType>(defaultValue);
+  const value = controlledValue ?? uncontrolled;
+  const setValue = (next: PortalPropertyType) => {
+    if (controlledValue === undefined) setUncontrolled(next);
+    onChange?.(next);
+  };
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const dropUp = useDropDirection(open, rootRef);
 
   const selected = portalPropertyTypeOptions.find((o) => o.value === value) ?? portalPropertyTypeOptions[0];
 
@@ -41,7 +56,7 @@ export default function PropertyTypeCombobox({ defaultValue = "Any" }: Props) {
       </button>
 
       {open && (
-        <div className="absolute left-1/2 top-full z-30 mt-3 w-72 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-0 lg:-translate-x-0">
+        <div className={`absolute left-1/2 z-30 ${dropUp ? "bottom-full mb-3" : "top-full mt-3"} w-72 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-0 lg:-translate-x-0`}>
           <p className="border-b border-brand-border bg-brand-surface px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-brand-muted">
             Property type
           </p>

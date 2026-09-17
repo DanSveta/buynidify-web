@@ -1,0 +1,429 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useRole } from "../context/RoleContext";
+import { useTheme } from "../context/ThemeContext";
+import { useListings } from "../context/ListingsContext";
+import { usePersistedState } from "../utils/usePersistedState";
+
+// Dashboard header: quick search, light/dark switch, messages, notifications
+// and the account menu. Everything in here is driven by real app state - the
+// search looks through the pages and the properties actually in the account,
+// and the notifications are generated from matches, interest and messages
+// rather than being decorative.
+
+const roleLabel: Record<string, string> = {
+  investor: "Investor",
+  tenant: "Tenant",
+  corporate: "Corporate",
+};
+
+/* --- icons ---------------------------------------------------------------- */
+
+const iconProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.7,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.2-3.2" />
+    </svg>
+  );
+}
+
+function SunIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z" />
+    </svg>
+  );
+}
+
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
+      <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+    </svg>
+  );
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3.5 6.5 8.5 6 8.5-6" />
+    </svg>
+  );
+}
+
+/* --- shared button shell --------------------------------------------------- */
+
+function IconButton({
+  label,
+  onClick,
+  badge,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  badge?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-brand-border bg-white text-brand-muted transition-colors hover:border-brand-blue hover:text-brand-blue"
+    >
+      <span className="h-[18px] w-[18px]">{children}</span>
+      {!!badge && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-cta px-1 text-[10px] font-bold text-brand-cta-text">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* --- quick search ---------------------------------------------------------- */
+
+type Hit = { label: string; sub: string; to: string };
+
+function pagesFor(role: string): Hit[] {
+  const common: Hit[] = [
+    { label: "Overview", sub: "Page", to: "/app/overview" },
+    { label: "Messages", sub: "Page", to: "/app/messages" },
+    { label: "Platform listings", sub: "Page", to: "/app/platform-listings" },
+    { label: "Profile", sub: "Page", to: "/app/profile" },
+    { label: "Verification", sub: "Page", to: "/app/verification" },
+    { label: "Pricing", sub: "Page", to: "/app/pricing" },
+    { label: "Relocate AI", sub: "Page", to: "/app/relocate" },
+    { label: "Help & Support", sub: "Page", to: "/app/support" },
+    { label: "Upgrade to Premium", sub: "Page", to: "/app/premium" },
+  ];
+  if (role === "corporate") {
+    return [{ label: "Company Dashboard", sub: "Page", to: "/app/b2b" }, ...common];
+  }
+  return [
+    { label: "My Properties", sub: "Page", to: "/app/my-properties" },
+    { label: role === "investor" ? "Search Properties" : "Find a Home", sub: "Page", to: "/app/search" },
+    { label: role === "investor" ? "Shortlist" : "Saved Homes", sub: "Page", to: "/app/shortlist" },
+    { label: role === "investor" ? "Mutual Matches" : "Matched!", sub: "Page", to: "/app/matches" },
+    { label: "Local Services", sub: "Page", to: "/app/local-services" },
+    ...common,
+  ];
+}
+
+function QuickSearch() {
+  const navigate = useNavigate();
+  const { role } = useRole();
+  const { investorListings, tenantDemand } = useListings();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Cmd/Ctrl+K focuses the field, the way the shortcut hint promises.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const hits = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const all: Hit[] = [
+      ...pagesFor(role ?? "investor"),
+      ...investorListings.map((l) => ({
+        label: l.address,
+        sub: `${l.beds}-bed ${l.type.toLowerCase()} · ${l.city}`,
+        to: "/app/platform-listings",
+      })),
+      ...tenantDemand.map((d) => ({
+        label: `${d.minBeds}-bed ${d.propertyType.toLowerCase()} in ${d.city}`,
+        sub: "Tenant looking",
+        to: "/app/platform-listings",
+      })),
+    ];
+    return all.filter((h) => `${h.label} ${h.sub}`.toLowerCase().includes(q)).slice(0, 7);
+  }, [query, role, investorListings, tenantDemand]);
+
+  return (
+    <div ref={boxRef} className="relative w-full max-w-md">
+      <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-brand-muted" />
+      <input
+        ref={inputRef}
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search anything..."
+        className="h-10 w-full rounded-full border border-brand-border bg-white pl-11 pr-16 text-sm text-brand-ink placeholder:text-brand-muted focus:border-brand-blue focus:outline-none"
+      />
+      <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-brand-border px-1.5 py-0.5 text-[10px] font-medium text-brand-muted">
+        ⌘K
+      </kbd>
+
+      {open && query.trim() && (
+        <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
+          {hits.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-brand-muted">No matches for "{query}".</p>
+          ) : (
+            hits.map((h, i) => (
+              <button
+                key={`${h.to}-${i}`}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setQuery("");
+                  navigate(h.to);
+                }}
+                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-brand-surface"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-brand-ink">{h.label}</span>
+                  <span className="block truncate text-[11px] text-brand-muted">{h.sub}</span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --- notifications --------------------------------------------------------- */
+
+type Note = { id: string; title: string; body: string; to: string };
+
+/* --- top bar --------------------------------------------------------------- */
+
+export default function TopBar() {
+  const navigate = useNavigate();
+  const { role, logout } = useRole();
+  const { dark, toggleDark } = useTheme();
+  const { threads, matches, investorListings, interestedTenantsFor } = useListings();
+
+  const [openPanel, setOpenPanel] = useState<"bell" | "avatar" | null>(null);
+  const [readIds, setReadIds] = usePersistedState<string[]>("buynidify:read-notifications", []);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpenPanel(null);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const notes: Note[] = useMemo(() => {
+    const out: Note[] = [];
+
+    matches.forEach((m) => {
+      out.push({
+        id: `match-${m.id}`,
+        title: "Mutual match",
+        body: `${m.propertyAddress}, ${m.city}`,
+        to: "/app/matches",
+      });
+    });
+
+    if (role === "investor") {
+      investorListings.forEach((l) => {
+        const n = interestedTenantsFor(l.id).length;
+        if (n > 0) {
+          out.push({
+            id: `interest-${l.id}-${n}`,
+            title: `${n} tenant${n === 1 ? "" : "s"} interested`,
+            body: l.address,
+            to: "/app/my-properties",
+          });
+        }
+      });
+    }
+
+    threads.forEach((t) => {
+      const last = t.messages[t.messages.length - 1];
+      if (last && last.from === "them") {
+        out.push({
+          id: `msg-${t.counterpartyId}-${last.id}`,
+          title: `New message from ${t.counterpartyName}`,
+          body: last.body,
+          to: "/app/messages",
+        });
+      }
+    });
+
+    return out.slice(0, 8);
+  }, [matches, threads, role, investorListings, interestedTenantsFor]);
+
+  const unread = notes.filter((n) => !readIds.includes(n.id));
+  const unreadMessages = threads.filter((t) => {
+    const last = t.messages[t.messages.length - 1];
+    return last && last.from === "them" && !readIds.includes(`msg-${t.counterpartyId}-${last.id}`);
+  }).length;
+
+  const initials = role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
+
+  return (
+    <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-brand-border bg-brand-page/85 px-8 py-3 backdrop-blur-md">
+      <QuickSearch />
+
+      <div ref={wrapRef} className="relative ml-auto flex items-center gap-2">
+        <IconButton label={dark ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleDark}>
+          {dark ? <SunIcon /> : <MoonIcon />}
+        </IconButton>
+
+        <IconButton
+          label="Messages"
+          badge={unreadMessages}
+          onClick={() => {
+            setReadIds(notes.filter((n) => n.id.startsWith("msg-")).map((n) => n.id).concat(readIds));
+            navigate("/app/messages");
+          }}
+        >
+          <MailIcon />
+        </IconButton>
+
+        <IconButton
+          label="Notifications"
+          badge={unread.length}
+          onClick={() => setOpenPanel((p) => (p === "bell" ? null : "bell"))}
+        >
+          <BellIcon />
+        </IconButton>
+
+        <button
+          type="button"
+          onClick={() => setOpenPanel((p) => (p === "avatar" ? null : "avatar"))}
+          aria-label="Account"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-xs font-bold text-white ring-2 ring-brand-page transition-transform hover:scale-105"
+        >
+          {initials}
+        </button>
+
+        {openPanel === "bell" && (
+          <div className="absolute right-0 top-12 w-80 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b border-brand-border px-4 py-3">
+              <p className="text-sm font-semibold text-brand-ink">Notifications</p>
+              {unread.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setReadIds(notes.map((n) => n.id))}
+                  className="text-[11px] font-medium text-brand-blue hover:underline"
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
+            {notes.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-brand-muted">You're all caught up.</p>
+            ) : (
+              <div className="max-h-96 overflow-y-auto">
+                {notes.map((n) => {
+                  const isUnread = !readIds.includes(n.id);
+                  return (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => {
+                        setReadIds([...readIds, n.id]);
+                        setOpenPanel(null);
+                        navigate(n.to);
+                      }}
+                      className="flex w-full gap-3 border-b border-brand-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-brand-surface"
+                    >
+                      <span
+                        className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${
+                          isUnread ? "bg-brand-cta" : "bg-brand-border"
+                        }`}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-brand-ink">{n.title}</span>
+                        <span className="block truncate text-xs text-brand-muted">{n.body}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {openPanel === "avatar" && (
+          <div className="absolute right-0 top-12 w-60 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
+            <div className="border-b border-brand-border px-4 py-3">
+              <p className="text-sm font-semibold text-brand-ink">{roleLabel[role ?? "investor"]} account</p>
+              <p className="text-xs text-brand-muted">Signed in to Buynidify</p>
+            </div>
+            {[
+              { label: "My profile", to: "/app/profile" },
+              { label: "Verification", to: "/app/verification" },
+              { label: "Messages", to: "/app/messages" },
+              { label: "Billing", to: "/app/billing" },
+              { label: "Help & Support", to: "/app/support" },
+            ].map((item) => (
+              <button
+                key={item.to}
+                type="button"
+                onClick={() => {
+                  setOpenPanel(null);
+                  navigate(item.to);
+                }}
+                className="block w-full px-4 py-2.5 text-left text-sm text-brand-ink transition-colors hover:bg-brand-surface"
+              >
+                {item.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              className="block w-full border-t border-brand-border px-4 py-2.5 text-left text-sm font-medium text-brand-muted transition-colors hover:bg-brand-surface hover:text-brand-ink"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}

@@ -1,345 +1,644 @@
 # Buynidify — Product & Feature Guide
 
-> **Document status:** Living product reference, initial draft.
+> **Document status:** Living product reference — investor and tenant core flow documented; relocation and corporate flows pending.
 >
-> This document describes the product idea and feature logic currently represented in the Buynidify prototype. It is intentionally non-technical. Details marked **To define** have not yet been confirmed and should not be treated as final business rules.
+> **Audience:** Founders, product managers, designers, developers, operations, agents, and future collaborators.
+>
+> **Rule:** This document describes the intended product, not merely what the current prototype happens to show. Anything marked **To confirm** is not yet a final business rule.
 
-## Purpose of this document
+## 1. Purpose of this document
 
-This is the shared source of truth for founders, designers, developers, and other collaborators working on Buynidify. It should explain:
+This is the shared source of truth for understanding Buynidify as a product. It explains:
 
-- what the product is trying to achieve;
-- who it serves;
-- how the different participants interact;
-- what each feature is meant to do;
-- the journey from property discovery to a signed lease;
-- what belongs in the current MVP; and
-- which important product decisions are still open.
+- the problem Buynidify solves;
+- what the platform is and is not;
+- how investors and tenants use it;
+- how interest becomes a match;
+- how the deposit protects both sides;
+- what happens during purchase and tenancy setup;
+- how Buynidify earns revenue; and
+- which areas still need product, operational, financial, or legal definition.
 
-Update this document whenever a feature, workflow, role, or business rule is clarified or changed. The interface prototype may illustrate these ideas, but this document should be treated as the product reference rather than as a description of screen layouts.
+This document should be updated whenever a role, workflow, business rule, fee, or responsibility changes. Screens and prototypes should follow this guide; they should not silently become the source of product policy.
 
-## Product summary
+## 2. Product in one sentence
 
-Buynidify is a property marketplace that connects **tenants who need homes**, **investors who can acquire or provide those homes**, and **companies arranging housing for employees**.
+**Buynidify helps an investor validate real tenant demand before buying a UK property, and helps a tenant secure an investor for a for-sale home they want to rent.**
 
-The central concept shown in the current prototype is demand-led property investment:
+## 3. The problem
 
-1. A tenant identifies a home or describes the kind of home they want.
-2. Buynidify makes that demand visible to suitable investors.
-3. An investor expresses interest and may purchase the property through the appropriate legal process.
-4. The tenant and investor are matched.
-5. The deposit, purchase, lease, and move-in journey are coordinated through Buynidify.
+### Investor problem
 
-In simple terms: **an investor can buy a home that a tenant already wants, reducing uncertainty for both sides.**
+A property investor can find an attractive property for sale, but may not know:
 
-The broader marketing concept also presents Buynidify as a place to discover verified properties, assess investment opportunities using AI-assisted insights, manage rentals, support relocations, and potentially participate in fractional property investment. The exact relationship between direct property purchases and fractional investment is still to be defined.
+- whether tenants actually want that specific property;
+- what rent the property may realistically achieve;
+- how quickly it may let;
+- what the estimated yield could be;
+- what kind of tenant is likely to want it; or
+- whether purchasing it is a sensible rental investment.
 
-## Product principles currently implied
+This creates vacancy and return risk. The investor may spend significant money buying an asset before knowing whether there is meaningful rental demand.
 
-- **Start with real demand.** Tenant interest can become a useful signal for investors instead of relying only on speculative property searches.
-- **Make the journey visible.** Both sides should understand what is happening from initial interest through to a signed lease.
-- **Support different participants in one ecosystem.** Investors, tenants, and companies have different needs but contribute to the same housing journey.
-- **Use assistance and automation where useful.** AI is presented as a tool for property analysis, matching, relocation guidance, and support triage.
-- **Keep humans available for important handoffs.** The prototype assumes a Buynidify coordinator helps manage deal progression and cases that should not be handled only by AI.
-- **Build trust around property transactions.** Verified listings, legal partners, transparent stages, consent, and clear support routes are recurring parts of the product concept.
+### Tenant problem
 
-## Geographic and market scope
+A tenant may find an ideal home on a UK property portal, but the home is for sale rather than for rent. The tenant cannot rent it directly, even though they would be willing to commit to a tenancy if an investor purchased it.
 
-The product application currently assumes an **England/UK-focused initial market**, displays prices in GBP, and uses example locations including London, Manchester, Bristol, Leeds, Birmingham, Bath, and Edinburgh.
+Traditional property search treats “for sale” and “to rent” as separate markets. Buynidify connects them.
 
-Some marketing-page content currently refers to global or US properties, USD pricing, fractional investment, LLC ownership, and worldwide relocation. These are prototype materials and are not yet reconciled with the UK-first application concept.
+## 4. What Buynidify is
 
-**To define:**
+Buynidify is a **demand-validation, matching, and transaction-coordination platform** built around properties advertised for sale on external UK property portals.
 
-- Exact launch geography and whether Scotland is included in the first release.
-- Whether Buynidify initially supports renting, whole-property investment, fractional investment, or a combination.
-- When and how international relocation and markets outside the UK enter the roadmap.
+It creates a coordinated path between:
 
-## User roles
+- an **investor**, who may buy a property;
+- a **tenant**, who wants to rent that property;
+- **Buynidify agents/coordinators**, who support the parties after a match; and
+- the external legal, payment, verification, and property professionals needed to complete the purchase and tenancy.
 
-### Investor
+The platform supports two equally important starting points:
 
-An investor uses Buynidify to discover property opportunities, understand expected suitability or returns, see demonstrated tenant demand, acquire properties, and follow deals through to tenancy.
+1. An investor finds a property and tests whether tenants want it before purchasing.
+2. A tenant finds a for-sale property and asks the investor community to purchase it for them to rent.
 
-The current prototype gives investors access to:
+## 5. What Buynidify is not
 
-- the property marketplace;
-- a simulated AI property-link analyzer;
-- property search and filters;
-- tenant-demand opportunities;
-- the deal tracker;
-- premium and VIP subscriptions; and
-- subscription billing.
+Buynidify is **not a conventional property-listing portal** and does not maintain its own independent inventory of properties for sale or rent.
 
-### Tenant
+- Properties originate on supported third-party UK property portals.
+- Buynidify only works with properties advertised **for sale** for this core flow.
+- Buynidify does not search ordinary rental listings for this matching model.
+- A property shown inside Buynidify is a referenced opportunity imported from an external source, not a claim that Buynidify owns or directly lists it.
+- Publishing a property on Buynidify means publishing an investor or tenant's interest in that external for-sale property to the opposite side of the marketplace.
 
-A tenant uses Buynidify to find a suitable home, express interest, communicate their housing requirements, follow the match and transaction process, and manage their home after moving in.
+This distinction must be clear in product language, design, data modelling, and user expectations.
 
-The current prototype gives tenants access to:
+## 6. Initial market and property sources
 
-- available homes in the marketplace;
-- property search and filters;
-- the deal tracker;
-- relocation guidance; and
-- lease, rent-history, and support information.
+The initial product is UK-only. Property opportunities are pulled or imported from supported UK property portals.
 
-### Corporate
+Currently confirmed examples:
 
-A corporate user represents a company or HR/people team arranging housing for employees, especially during relocation.
+- Rightmove
+- Zoopla
 
-The intended corporate proposition includes:
+The complete supported-source list will be added from the forthcoming reference screenshot.
 
-- viewing employees' housing status, location, and cost in one place;
-- receiving and approving employee housing requests and budgets;
-- monitoring open requests and upcoming lease renewals; and
-- reporting housing cost by location.
+Users may discover a property in either of two ways:
 
-The current prototype demonstrates this proposition and a demo-request form, but not yet a complete operational company dashboard.
+- Search from within Buynidify using data from supported external sources.
+- Search elsewhere, copy the external property URL, and paste it into Buynidify.
 
-### Buynidify coordinator
+Regardless of discovery method, the property must be a **for-sale** listing.
 
-Although there is no coordinator-facing interface in the current prototype, the product logic refers to a human coordinator who:
+**To confirm:**
 
-- handles the handoff after a tenant–investor match;
-- communicates next steps during a deal;
-- receives certain support and lease questions; and
-- may coordinate legal, property, and service partners.
+- Complete supported portal list.
+- Whether each source is connected through an API, licensed feed, partnership, link metadata, or another permitted method.
+- Coverage across England, Scotland, Wales, and Northern Ireland.
+- Rules for unsupported, expired, removed, sold, under-offer, auction, shared-ownership, and new-build listings.
 
-**To define:** coordinator responsibilities, internal tools, service-level expectations, and which actions are automated versus manually managed.
+## 7. Core product principles
 
-## Core marketplace model
+### Validate demand before acquisition
 
-The prototype currently suggests two complementary paths.
+The investor should be able to test real tenant interest before committing to buy.
 
-### Path A: Investor-owned or investor-listed property
+### Unlock for-sale homes for tenants
 
-1. An investor adds or lists a property on Buynidify.
-2. The property becomes discoverable to tenants.
-3. A tenant expresses interest.
-4. If both sides wish to proceed, a match/deal is created.
-5. The parties progress toward deposit, lease, and move-in.
+A tenant should be able to signal, “I would rent this home if an investor buys it,” even though it is not currently offered for rent.
 
-### Path B: Tenant-led demand for a property not yet owned
+### Interest is exploratory; deposit is commitment
 
-1. A tenant identifies a property or submits housing requirements.
-2. The demand appears to relevant investors.
-3. One or more investors can express interest in buying the property.
-4. Buynidify establishes a match and coordinates the acquisition.
-5. The tenant secures the home and signs the lease after the purchase progresses.
+Clicking “interested” helps the two sides discover each other. A tenant deposit is the later commitment mechanism that makes the matched transaction credible.
 
-Tenant-demand entries currently include the destination city, property type, target monthly rent, minimum bedrooms, number of interested tenants, age of the request, and additional requirements.
+### Protect both sides with clear rules
 
-**To define:**
+The deposit should discourage a tenant from withdrawing after an investor has acted, while protecting the tenant if the investor fails to proceed.
 
-- What makes tenant interest sufficiently serious or verified to show investors.
-- Whether a tenant selects an exact property, submits general requirements, or can do both.
-- How investors are ranked or selected when several respond.
-- Whether tenant demand is anonymous and what information becomes visible at each stage.
-- When a binding commitment exists for either party.
-- What happens if the property cannot be purchased, the investor withdraws, or the tenant changes their mind.
+### Combine automation with human coordination
 
-## Shared deal journey
+AI helps evaluate opportunities. Buynidify agents help both parties navigate the agreement, purchase, tenancy contract, and related next steps.
 
-The current prototype uses four visible stages:
+### Show one shared version of progress
 
-1. **Matched** — the tenant and investor have both expressed interest.
-2. **Deposit Paid** — the tenant pays a holding deposit to secure the home.
-3. **Purchase In Progress** — the investor purchases the property through legal partners.
-4. **Lease Signed** — the rental agreement is signed, the deposit is converted, and the deal is considered closed.
+After a match, both investor and tenant should see the status, responsibilities, deadlines, documents, and next action.
 
-The Deal Tracker is intended to show the same underlying progress to the tenant and investor. A Buynidify coordinator currently handles the handoff between stages. Future in-app messaging is expected to fit into this journey.
+## 8. Roles at a glance
 
-**To define:**
+| Role | Primary goal | What they contribute | How they pay |
+|---|---|---|---|
+| Investor | Buy a property with demonstrated rental demand | Purchase capital, proposed rental terms, and commitment to buy | Monthly subscription; platform share of rent/revenue model described below |
+| Tenant | Secure a desired for-sale home as a rental | Rental demand, tenancy commitment, and deposit | No monthly subscription; one-time fixed fee when an agreement is signed |
+| Buynidify agent/coordinator | Move a match safely through purchase and tenancy | Guidance, coordination, documents, communication, and partner handoffs | Internal platform role |
+| Corporate | Arrange and manage employee housing | Employer requirements, approvals, and employee demand | **To define in corporate-flow section** |
 
-- Exact deal stages, status transitions, owners, deadlines, and required documents.
-- The meaning and legal treatment of the holding deposit and what “deposit converted” means.
-- Cancellation, refund, fallback, dispute, and failed-purchase rules.
-- Conveyancing, referencing, Right to Rent, KYC/AML, tenancy-deposit protection, and lease-signing responsibilities.
-- What each role can see and do during every stage.
+## 9. Investor role
 
-## Feature guide
+### 9.1 Investor objective
 
-### Scenario selection and access
+The investor wants to understand whether a for-sale property is likely to work as a rental investment and whether real tenants are prepared to rent it before the investor completes the purchase.
 
-The prototype uses a simple scenario picker rather than real authentication. A visitor chooses Investor, Tenant, or Corporate and sees the corresponding experience. They may log out and choose another role.
+### 9.2 Investor journey — investor finds the property
 
-This is only a demonstration device. Real account structure, permissions, onboarding, verification, and the possibility of one person holding multiple roles are not yet defined.
+#### Step 1: Find a for-sale property
 
-### Marketplace
+The investor searches using criteria such as:
 
-The Marketplace is the main view of properties currently active in the Buynidify ecosystem.
+- city or location;
+- purchase price; and
+- property type, such as flat/apartment or house.
 
-For investors, it currently shows investor-listed properties and offers a link field for a property found on portals such as Rightmove, Zoopla, or OnTheMarket. The intended feature is to analyze an external listing and provide an AI-assisted assessment. The present result is simulated.
+They may search inside Buynidify or on a supported external portal. Only for-sale properties are relevant.
 
-For tenants, it presents homes framed as available to rent and allows the tenant to express interest.
+#### Step 2: Import the property
 
-**To define:** listing sources, listing ownership, moderation, availability rules, analysis inputs and outputs, rent calculation, property-detail content, and actions after interest is expressed.
+The investor copies the external listing URL and pastes it into Buynidify. The platform retrieves the available property information and prepares it for analysis.
 
-### Property search
+**To confirm:** required fields when source data is missing, and whether the user may correct imported information.
 
-Search currently represents properties for sale that an investor could buy and bring onto the platform. Users can filter by:
+#### Step 3: Review AI-powered investment analysis
 
-- minimum number of bedrooms;
-- maximum purchase price;
-- property type;
-- furnished status;
-- washing machine in the unit;
-- parking; and
-- whether pets are allowed.
+Buynidify analyzes the property as a potential rental investment. The analysis is intended to include:
 
-A list and illustrative map view are available. The current map does not use a real mapping or property-data provider.
+- estimated monthly rent;
+- estimated gross yield;
+- estimated net yield;
+- location score;
+- estimated time to let, for example two to four weeks;
+- likely tenant profile; and
+- an overall explanation of the opportunity, risks, and whether the property appears worth considering.
 
-**To define:** how investor and tenant search differ, location and commute search, rental-budget filters, sorting, saved searches, alerts, property availability, and integration with external listing providers.
+The analysis should support a decision; it should not guarantee financial performance or replace professional advice.
 
-### AI property analysis
+**To confirm:**
 
-The intended concept allows an investor to paste an external property link and receive an assessment such as a fit score, yield analysis, or marketplace suitability signal.
+- Exact analysis fields and definitions.
+- Calculation methods and included/excluded costs.
+- Meaning and scoring method for “location score.”
+- Meaning, evidence, and permitted use of “tenant profile.”
+- How “time to let” is estimated.
+- Overall recommendation format and risk disclosures.
+- Data sources, update frequency, confidence levels, and regulatory wording.
 
-The current experience only waits briefly and displays a random mock score. No external page is read and no analysis occurs.
+#### Step 4: Configure the proposed tenancy
 
-**To define:** data sources, score methodology, financial assumptions, risk indicators, confidence and disclaimers, comparison data, report format, and whether analyzed properties are saved automatically.
+If the investor wants to test tenant demand, they prepare the opportunity for tenants. They specify:
 
-### Tenant Demand
+- target monthly rent;
+- earliest or planned availability date;
+- minimum tenancy length, for example six or twelve months; and
+- optional notes, requirements, or context.
 
-Tenant Demand is an investor-only feature in the current concept. It shows housing demand for which an investor-owned property is not yet available. An investor can indicate that they are interested in buying a suitable property.
+The availability date will often be approximately two months in the future when the property has not yet been purchased. This is an estimate, not a guaranteed move-in date.
 
-Premium and VIP members are currently described as receiving earlier alerts when demand matches locations and price ranges they care about.
+#### Step 5: Publish interest to tenants
 
-**To define:** demand validation, matching thresholds, alert timing, exclusivity, competition between investors, privacy rules, and the workflow after an investor responds.
+The investor publishes the opportunity inside Buynidify. This does not create a new property listing owned by Buynidify. It makes the investor's proposed rental opportunity—linked to the external for-sale property—visible to tenants.
 
-### Deal Tracker
+#### Step 6: Measure tenant interest
 
-The Deal Tracker provides a shared view of the journey from match to signed lease. It currently displays the property, anonymized participant initials, last update, current stage, and explanations of all stages.
+The investor waits for tenants to express interest. The purpose is to assess demand before purchasing.
 
-It is intended eventually to support in-app communication without changing the overall deal structure.
+The investor should eventually be able to understand:
 
-**To define:** actions, tasks, documents, payments, messages, notifications, stage ownership, audit history, and exceptional states.
+- how many tenants are interested;
+- when interest was expressed;
+- whether interested tenants meet relevant requirements;
+- whether any tenant is ready to proceed to commitment; and
+- the status of conversations or next steps.
 
-### Relocation assistant
+**To confirm:** what tenant information is visible before verification or mutual acceptance, and whether several tenants may compete for the same property.
 
-Relocate is currently a consent-first guided question-and-answer flow. It asks for the user's name, destination city, approximate monthly budget, and desired move-in date. The intended outcome is to hand these answers into Search and generate suitable housing matches.
+#### Step 7: Form a match
 
-The prototype describes the experience as AI-guided and suggests future voice input, but currently uses typed responses and does not perform a real search handoff.
+When an investor and tenant are interested in the same property and agree on the proposed rental terms, the opportunity becomes a match. Interest alone is not the final commitment.
 
-**To define:** intended users, origin and destination coverage, household and employment information, affordability checks, employer involvement, voice functionality, consent/data retention, and relocation services beyond housing search.
+#### Step 8: Agreement and tenant deposit
 
-### Corporate housing
+The parties move into the commitment stage. The tenant pays a deposit and an agreement records the intended tenancy terms. The deposit demonstrates that the tenant is serious enough for the investor to begin purchasing the property.
 
-Buynidify's corporate offering is intended to help companies manage employee relocation and housing. The proposed experience includes a single dashboard, employee requests and budget approvals, housing-status visibility, costs by location, renewals, and open-request reporting.
+#### Step 9: Purchase the property
 
-The current prototype contains only an overview and a demo-request form requesting company name, work email, and approximate employee volume.
+After the commitment is in place, the investor starts the property-purchase process. Buynidify agents coordinate the remaining journey with both sides and relevant external professionals.
 
-**To define:** company onboarding, employee invitations, roles and permissions, approval policies, billing, reporting, privacy between employer and employee, bulk requests, and service delivery.
+#### Step 10: Complete tenancy and receive rent
 
-### Premium and VIP memberships
+Once the purchase and tenancy requirements are complete, the tenant moves in and pays rent through the agreed platform/payment arrangement. Buynidify's rental revenue share is incorporated into the amount charged rather than presented as a separate tenant subscription.
 
-The prototype currently presents three investor plans:
+### 9.3 Investor journey — tenant finds the property first
 
-- **Standard — £0/month:** property search, AI scoring, and yield calculator.
-- **Premium — £49/month:** Standard features plus early tenant-demand access and priority AI analysis.
-- **VIP — £149/month:** Premium features plus a dedicated account manager and reduced transaction fees.
+An investor can also discover opportunities submitted by tenants:
 
-These prices and benefits are mock product content and should not be considered approved commercial terms.
+1. A tenant imports a for-sale property they want to rent.
+2. The tenant publishes their rental interest and proposed needs.
+3. Investors review this demand and the associated property.
+4. An investor evaluates the property, including the AI investment analysis.
+5. The investor signals willingness to purchase it.
+6. Investor and tenant align on rent, availability, tenancy length, and other conditions.
+7. The transaction proceeds through match, agreement, deposit, purchase, and tenancy.
 
-**To define:** final pricing, tax, billing frequency, trials, cancellation, feature entitlements, alert advantage, transaction fees, fair-access rules, and whether tenants or companies have paid plans.
+## 10. Tenant role
 
-### Billing
+### 10.1 Tenant objective
 
-The investor billing concept shows the active plan, status, renewal date, recurring amount, and payment card. Subscription upgrades and card updates are not currently functional.
+The tenant wants to turn a desirable UK property advertised for sale into a home they can rent, or respond to a property an investor is considering buying.
 
-**To define:** payment provider, supported payment methods, invoices, taxes, failed payments, refunds, cancellation, plan changes, and transaction-related payments.
+### 10.2 Tenant journey — tenant finds the property
 
-### My Home
+#### Step 1: Find a for-sale home
 
-After move-in, a tenant can view basic lease details and rent-payment history. The prototype includes property address, monthly rent, lease term, renewal date, and previous payments.
+The tenant searches inside Buynidify or on a supported external portal. Even though the tenant wants to rent, the source property must be for sale.
 
-**To define:** complete tenancy information, documents, rent payment actions, receipts, renewal workflow, household members, inspections, notices, and move-out.
+#### Step 2: Import the property
 
-### Tenant support
+The tenant copies the listing URL and pastes it into Buynidify.
 
-Tenants can categorize and submit a support request. The categories currently route as follows:
+#### Step 3: Describe rental interest
 
-- Maintenance and repairs → AI triage, followed by a local service partner if necessary.
-- Rent and payments → billing support.
-- Lease questions → a Buynidify coordinator.
-- Moving and access → AI triage.
-- Other issues → a Buynidify coordinator.
+The tenant confirms that they want to rent the property if an investor purchases it. The tenant may need to provide requirements such as:
 
-**To define:** urgency and emergency handling, service levels, landlord/investor involvement, contractor selection, status tracking, communications, costs and approvals, escalation, and feedback after resolution.
+- desired move-in date;
+- acceptable monthly rent or budget;
+- preferred tenancy length;
+- household details; and
+- notes or important conditions.
 
-### Verified listings and trust
+Only some of these fields are currently confirmed; the final tenant-interest form remains to be defined.
 
-The marketing experience promises verified listings, predictive analytics, secure legal transactions, and priority support. It also refers to property inspections, escrow, legal ownership structures, digital contracts, and vetted tenants.
+#### Step 4: Publish demand to investors
 
-These claims are not backed by operational functionality in the current prototype and require product, legal, and compliance definition before being presented as firm promises.
+The tenant publishes their interest to the investor side of Buynidify. This is a demand signal attached to the external for-sale property—not a rental listing.
 
-### Fractional investment
+#### Step 5: Wait for investor interest
 
-The marketing content describes fractional property participation, low minimum investment amounts, ownership through a legal structure, a digital ledger, and rental payouts.
+Investors can review the property and the tenant demand. One or more investors may indicate willingness to buy it.
 
-The application itself currently behaves more like a marketplace for an investor buying a whole property for an identified tenant. Fractional investment is therefore a concept in the marketing layer, not a defined end-to-end workflow.
+#### Step 6: Form a match
 
-**To define:** whether fractional investment is part of the launch product, ownership structure, investor rights, minimum investment, distributions, fees, liquidity, governance, regulation, risk disclosures, and how it connects to tenant-led demand.
+When a tenant and investor agree to pursue the same property under compatible rental terms, they become a match.
 
-## Current MVP boundary represented by the prototype
+#### Step 7: Pay the commitment deposit and sign the agreement
 
-The current prototype demonstrates:
+The tenant pays a deposit to demonstrate a genuine commitment to rent if the investor completes the purchase. The parties sign an agreement covering the intended property, rent, tenancy start, tenancy length, deposit treatment, and other required conditions.
 
-- three participant scenarios: Investor, Tenant, and Corporate;
-- a property marketplace;
-- basic property filtering and map presentation;
-- simulated AI analysis of an external property;
-- tenant-demand signals for investors;
-- a shared four-stage deal tracker;
-- a guided relocation intake;
-- a corporate housing proposition and sales enquiry;
-- investor membership plans and billing presentation; and
-- tenant lease, rent-history, and support presentation.
+#### Step 8: Follow purchase progress
 
-The prototype does **not** yet provide:
+The investor begins the purchase. The tenant follows progress and completes any checks, documents, or tenancy requirements coordinated by Buynidify agents.
 
-- real user accounts or permissions;
-- a backend or persistent product data;
-- real property listings or live availability;
-- real AI analysis or matching;
-- real maps;
-- messaging between participants;
-- deposits, rent, subscriptions, or other payments;
-- document generation or electronic signatures;
-- legal/compliance processes such as KYC/AML or Right to Rent;
-- real company dashboards and employee workflows;
-- real service-provider or coordinator tools; or
-- a defined fractional-investment transaction journey.
+#### Step 9: Sign the tenancy and move in
 
-## Key product decisions still required
+Once the investor owns the property and all conditions are satisfied, the formal tenancy is completed and the tenant moves in from the agreed date or an updated mutually agreed date.
 
-The following questions should be resolved as role-specific requirements are added:
+#### Step 10: Pay rent and use ongoing support
 
-1. What is the exact launch proposition: tenant-led buy-to-let matching, a broader rental marketplace, fractional investment, or all three?
-2. What is the primary end-to-end journey for each role?
-3. What information must users provide, and when are identity, affordability, ownership, or company checks required?
-4. What creates a match, and who has the right to accept or reject it?
-5. What commitments, payments, refunds, and protections apply at every deal stage?
-6. How does Buynidify make money: subscriptions, transaction fees, rent-related fees, corporate contracts, investment fees, or another model?
-7. What does Buynidify manage directly, and what is handled by landlords, legal partners, property managers, payment providers, or employers?
-8. Which AI features provide recommendations versus make decisions, and how are their outputs explained and reviewed?
-9. What information is shared between tenant, investor, company, and coordinator at each point?
-10. Which marketing claims are approved, supportable, and appropriate for the launch market?
+The tenant pays rent through the agreed arrangement and can access tenancy information and support services.
 
-## Maintaining this guide
+### 10.3 Tenant journey — investor publishes first
 
-When defining a role or feature, document at least:
+The tenant may instead browse opportunities already published by investors:
 
-- the user's goal;
+1. The tenant sees an external for-sale property that an investor is considering.
+2. The tenant reviews the proposed rent, expected availability, minimum tenancy, and notes.
+3. The tenant expresses interest.
+4. If both sides agree to proceed, they form a match.
+5. The flow continues through agreement, deposit, purchase, tenancy signing, and move-in.
+
+## 11. Matching logic
+
+### 11.1 Interest
+
+Interest is an early signal. It allows an investor and tenant to discover mutual intent around the same external property.
+
+Interest should not by itself mean:
+
+- the investor is legally required to purchase;
+- the tenant is legally required to rent;
+- the property is reserved;
+- the purchase will succeed; or
+- the proposed move-in date is guaranteed.
+
+### 11.2 Match
+
+A match exists when both sides are interested in the same property and are prepared to discuss or accept compatible proposed terms.
+
+**To confirm:** whether the system creates a match immediately after two interest actions or only after explicit acceptance of terms.
+
+### 11.3 Commitment
+
+Commitment begins after the parties agree on the required terms, sign the relevant agreement, and the tenant pays the deposit. This is the point intended to give the investor sufficient confidence to start the purchase.
+
+### 11.4 Multiple interested parties
+
+**To confirm:**
+
+- Whether a property may have several interested tenants and investors at once.
+- Who selects the counterparty.
+- Whether there is an exclusivity or reservation period.
+- When other interested parties are notified that the opportunity is unavailable.
+- Whether a backup match may be maintained if the primary transaction fails.
+
+## 12. Agreement and deposit protection
+
+The deposit is central to the model. It prevents the process from relying only on casual expressions of interest after an investor begins acting on the tenant's demand.
+
+### 12.1 Intended purpose
+
+The deposit:
+
+- demonstrates that the tenant is genuinely prepared to rent;
+- gives the investor confidence to begin purchasing;
+- compensates the investor if the tenant withdraws without an accepted reason after committing; and
+- is returned to the tenant if the transaction fails because of the investor.
+
+### 12.2 Current outcome rules
+
+| Outcome | Deposit treatment |
+|---|---|
+| Tenant withdraws after commitment without an accepted protected reason | Deposit goes to the investor |
+| Investor causes the transaction not to proceed or withdraws | Deposit is returned to the tenant |
+| Purchase and tenancy proceed successfully | **To confirm:** whether the deposit becomes part of the tenancy/security deposit, is credited toward another payment, or is handled separately |
+| External event prevents completion and neither party is at fault | **To confirm** |
+| Property fails legal, survey, mortgage, valuation, or other due diligence | **To confirm** |
+| Completion or move-in is delayed | **To confirm** |
+
+### 12.3 Agreement content
+
+The agreement is expected to record at least:
+
+- the referenced property;
+- investor and tenant identities;
+- agreed monthly rent;
+- expected tenancy start or availability date;
+- minimum or fixed tenancy length;
+- deposit amount and custody;
+- deposit release/refund conditions;
+- each party's responsibilities and deadlines;
+- conditions that must be satisfied before purchase or tenancy;
+- cancellation and dispute rules; and
+- what happens if the property cannot be purchased.
+
+All deposit and agreement rules require legal review before production use.
+
+## 13. Assisted purchase and tenancy process
+
+After commitment, Buynidify agents support both parties through the remaining process. Their intended role includes:
+
+- explaining next steps;
+- keeping both sides informed;
+- coordinating signatures and required documents;
+- helping connect the investor with purchase/legal professionals;
+- helping coordinate tenant checks and tenancy setup;
+- monitoring deadlines and blockers;
+- documenting status changes; and
+- escalating problems or disputes.
+
+The investor remains the property purchaser, and the tenant remains the future renter. Buynidify coordinates the journey but the exact boundary between the platform, agents, solicitors, estate agents, lenders, property managers, and payment providers is still to be defined.
+
+## 14. Shared transaction stages
+
+The product should show both sides the same high-level journey. A more accurate initial stage model is:
+
+1. **Property imported** — an external for-sale property is brought into Buynidify.
+2. **Opportunity published** — investor proposal or tenant demand becomes visible.
+3. **Interest received** — one or more people on the opposite side respond.
+4. **Matched** — investor and tenant agree to explore the same property together.
+5. **Terms agreed** — proposed rent, dates, tenancy length, and conditions align.
+6. **Agreement signed** — the pre-purchase/tenancy commitment is executed.
+7. **Deposit secured** — the tenant's commitment deposit is received and protected according to the agreement.
+8. **Purchase in progress** — the investor proceeds with acquisition and due diligence.
+9. **Tenancy preparation** — checks, formal tenancy documents, payments, and move-in arrangements are completed.
+10. **Lease signed / ready to move in** — the tenancy becomes ready to begin.
+11. **Tenancy active** — the tenant occupies the property and ongoing rent/service processes begin.
+
+These stages are a structured interpretation of the confirmed flow. Names, ordering, and legal triggers still require validation.
+
+## 15. AI property analysis
+
+AI analysis helps the investor evaluate a referenced property before publishing it or responding to tenant demand.
+
+### Intended output
+
+- Summary of the property and investment case.
+- Estimated monthly rental value.
+- Estimated gross rental yield.
+- Estimated net rental yield.
+- Location score.
+- Estimated time to let.
+- Likely tenant profile.
+- Key advantages, concerns, and risks.
+- A clear explanation of whether and why the opportunity may be worth further investigation.
+
+### Required product safeguards
+
+- Estimates must be labelled as estimates.
+- The analysis must explain its assumptions.
+- Users must understand that results are not guarantees.
+- Stale or incomplete source data should be identified.
+- Financial, legal, tax, mortgage, valuation, survey, and regulatory advice must remain appropriately separated.
+- Fairness and privacy must be considered before generating or exposing any “tenant profile.”
+
+## 16. Search and discovery
+
+The product may offer an aggregated search experience powered by supported external property sources. The core filters currently confirmed are:
+
+- city/location;
+- purchase price; and
+- property type.
+
+All returned properties for the core matching flow must be for sale.
+
+Additional filters visible in the prototype—bedrooms, furnishing, parking, pets, washing machine, and others—should not be treated as final requirements until confirmed.
+
+Search should always preserve the original external listing source and make the property's current external status understandable.
+
+## 17. Publishing an opportunity
+
+“Publish” has a specific meaning in Buynidify:
+
+- The underlying property remains on the external portal.
+- Buynidify stores or displays a reference to it.
+- The publishing user adds their own intent and proposed terms.
+- The opportunity becomes visible to the opposite role.
+
+### Investor-published opportunity
+
+Contains the property reference plus proposed monthly rent, availability date, minimum tenancy, notes, and relevant AI analysis.
+
+### Tenant-published demand
+
+Contains the property reference plus the tenant's intention to rent, desired timing, budget/acceptable rent, tenancy expectations, and relevant notes.
+
+**To confirm:** moderation, expiry, editing, removal, duplicate detection, source-status monitoring, and publication visibility.
+
+## 18. Revenue model
+
+### 18.1 Investor subscription
+
+Investors pay a monthly subscription to use the platform. Tenants do not pay a monthly subscription.
+
+**To confirm:** plans, prices, entitlements, billing period, trials, cancellation, refunds, tax, and whether access to tenant demand differs by plan.
+
+### 18.2 Tenant agreement fee
+
+The tenant pays a fixed one-time amount when an agreement is successfully signed. This is separate from a monthly subscription.
+
+**To confirm:** amount, due date, refundability, tax, whether it is charged per agreement/property, and treatment when a transaction later fails.
+
+### 18.3 Ongoing rental share
+
+The current intended model is that approximately **5%** goes to Buynidify from the ongoing rental payment arrangement. When the investor defines the target rent, the platform adds its percentage on top to determine what the tenant pays, in a model conceptually similar to a marketplace service charge.
+
+Example only: if the investor's target receipt were £1,000 and the platform fee were exactly 5% added on top, the tenant-facing amount would be £1,050. The exact calculation has not yet been confirmed and this example is not a final pricing rule.
+
+**To confirm:**
+
+- Whether 5% is final or illustrative.
+- Whether it is calculated on top of investor rent or deducted from it.
+- Whether the tenant sees a single all-inclusive rent or an itemized service fee.
+- VAT/tax treatment.
+- Payment processing fees and failed-payment rules.
+- Who collects, holds, and remits rent.
+- Whether regulations require a different presentation or structure.
+
+## 19. Ongoing tenancy and support
+
+Once the property is rented, the tenant should be able to access relevant tenancy information, payment history, and support. The investor should be able to see appropriate property, tenancy, and payment information.
+
+The prototype currently suggests support categories for maintenance, payments, lease questions, moving/access, and other issues. Final responsibility for property management, repairs, emergencies, renewals, notices, and move-out remains to be defined.
+
+## 20. Notifications and communication
+
+The final system should notify users about meaningful events such as:
+
+- new interest in a published opportunity;
+- a potential or confirmed match;
+- requested changes to proposed terms;
+- an agreement awaiting action;
+- deposit status;
+- purchase milestones or delays;
+- required documents or verification;
+- tenancy preparation tasks; and
+- move-in readiness.
+
+**To confirm:** communication channels, messaging between parties, agent participation, response deadlines, notification preferences, and privacy rules.
+
+## 21. Verification, compliance, and trust
+
+The transaction may require identity, investor, affordability, Right to Rent, anti-money-laundering, ownership, payment, and other checks. Exact timing and responsibility are not yet defined.
+
+Before launch, the product must define:
+
+- investor eligibility and source-of-funds checks;
+- tenant identity, affordability, references, and Right to Rent;
+- deposit custody and protection;
+- payment handling;
+- agreement and tenancy-document status;
+- data-sharing permissions;
+- complaint and dispute resolution;
+- financial-promotion and investment-language constraints; and
+- which entities are regulated or act through regulated partners.
+
+## 22. Corporate and relocation roles
+
+Corporate housing and relocation are part of the wider Buynidify vision, but their actual flows have not yet been provided. Existing prototype screens should be treated as exploratory rather than authoritative.
+
+These sections will be expanded after the corresponding product explanations are supplied.
+
+## 23. Fractional investment
+
+Older marketing and prototype content mentions fractional property investment. The confirmed investor–tenant flow described here concerns an investor purchasing a property that a matched tenant wants to rent.
+
+Fractional investment is therefore **not currently confirmed as part of this core flow**. It must not be blended into requirements unless its ownership, regulation, funding, returns, governance, and relationship to tenant demand are defined separately.
+
+## 24. Current prototype versus intended product
+
+The prototype demonstrates parts of the experience but should not be mistaken for completed business logic.
+
+### Represented in some form
+
+- Investor, tenant, and corporate scenarios.
+- External property-link importing.
+- Simulated AI property analysis.
+- Property search and filtering.
+- Investor-published properties and tenant-published demand.
+- Interest, matching, and deal-tracking concepts.
+- Shortlists and saved properties.
+- Profile, verification, pricing, local services, and support concepts.
+- Theme and presentation experiments.
+
+### Not yet production functionality
+
+- Live licensed property-source integrations.
+- Reliable source-listing availability/status monitoring.
+- Real AI investment analysis.
+- Real authentication and role permissions.
+- Persistent backend records.
+- Identity, affordability, KYC/AML, or Right to Rent checks.
+- Legally reviewed agreements and deposit rules.
+- Deposit, subscription, fee, or rent payments.
+- Purchase and conveyancing integrations.
+- Electronic signatures and document management.
+- Agent/coordinator operational tools.
+- Production notifications and messaging.
+- Corporate and relocation workflows.
+
+## 25. Confirmed decisions from the current product discussion
+
+- The initial market is the UK.
+- Buynidify does not hold its own ordinary property inventory.
+- Properties originate from supported external property portals.
+- The core flow uses for-sale properties, not rental listings.
+- Both investors and tenants can discover and import a property URL.
+- An investor can test tenant interest before buying.
+- A tenant can request an investor for a for-sale home they want to rent.
+- AI analysis supports the investor's evaluation.
+- Investors publish target rent, expected availability, minimum tenancy, and notes.
+- Mutual intent leads to a match and agreement process.
+- The tenant deposit represents real commitment.
+- Tenant-caused withdrawal after commitment is intended to release the deposit to the investor.
+- Investor-caused failure is intended to return the deposit to the tenant.
+- Buynidify agents assist both sides through contracts and completion.
+- Investors pay a monthly subscription.
+- Tenants do not pay a monthly subscription.
+- Tenants pay a fixed fee when an agreement is signed.
+- The intended ongoing revenue model currently references an approximately 5% rental share/markup.
+
+## 26. Highest-priority open decisions
+
+1. Complete list of supported property portals.
+2. Exact definition and legal trigger for interest, match, commitment, and reservation.
+3. Tenant-interest form and investor-publication fields.
+4. Tenant/investor verification and eligibility requirements.
+5. Deposit amount, custody, protection, successful-completion treatment, and full refund/forfeiture matrix.
+6. What happens if purchase fails for reasons outside either party's control.
+7. Exact pre-purchase agreement and final tenancy contract structure.
+8. AI analysis formulas, sources, explanations, and disclaimers.
+9. Final investor subscription plans and pricing.
+10. Final tenant agreement fee.
+11. Final ongoing rental-fee percentage, calculation, and presentation.
+12. Who collects rent and who manages the property after move-in.
+13. Multi-investor/multi-tenant selection and exclusivity rules.
+14. Communication, notifications, deadlines, and agent responsibilities.
+15. Relocation flow.
+16. Corporate flow.
+
+## 27. How to extend this document
+
+For every newly explained role or feature, add:
+
+- user goal;
 - entry conditions;
-- the normal step-by-step journey;
-- information collected and displayed;
-- decisions and business rules;
-- notifications and communications;
-- payments or commercial rules;
-- privacy, legal, and permission requirements;
-- failure, cancellation, and exception cases;
-- what is included in the MVP; and
-- future ideas that are explicitly outside the MVP.
+- normal step-by-step journey;
+- information entered and displayed;
+- business rules and decision points;
+- permissions and privacy;
+- payments and fees;
+- notifications and human handoffs;
+- cancellation, failure, and exception paths;
+- legal/compliance dependencies;
+- MVP scope; and
+- explicitly deferred future functionality.
 
-Confirmed requirements should replace the relevant **To define** items rather than simply being added alongside them. This keeps the guide clear and prevents old assumptions from surviving after a decision has been made.
+When a decision becomes confirmed, replace the relevant **To confirm** text. Do not leave old assumptions beside new rules, because that creates multiple conflicting versions of the product.

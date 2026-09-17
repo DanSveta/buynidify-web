@@ -1,26 +1,41 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRole } from "../context/RoleContext";
 import { properties, type PropertyType } from "../data/mockData";
 import PropertyCard from "../components/PropertyCard";
 import MapPlaceholder from "../components/MapPlaceholder";
 import PropertyLinkImporter from "../components/PropertyLinkImporter";
-import {
-  portalPropertyTypeOptions,
-  type PortalPropertyType,
-} from "../../lib/propertyTypes";
+import { SearchIcon } from "../../components/icons";
+import LocationCombobox from "../../components/LocationCombobox";
+import PropertyTypeCombobox from "../../components/PropertyTypeCombobox";
+import { digitsOnly, formatThousands } from "../../lib/format";
+import { type PortalPropertyType } from "../../lib/propertyTypes";
 
-// Furnished is the only extra filter - checked live against Rightmove,
-// Zoopla and OnTheMarket's own For Sale filter panels (Sept 2026): none of
-// the three expose a furnished/unfurnished/part-furnished filter for
-// buying, only for renting, so this can't be wired into the portal
-// deep-links. It stays as a filter on Buynidify's own listings only.
-type Filters = {
-  furnished: boolean;
-};
+// One segment of the search bar: tiny coloured label, value underneath, the
+// whole cell lighting up on hover - the Airbnb pattern. Fields inside are
+// borderless so the bar reads as one object, not five boxed inputs.
+function Segment({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`min-w-0 flex-1 rounded-[20px] px-5 py-3 text-left transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03] ${className}`}
+    >
+      <p className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
 
-const defaultFilters: Filters = {
-  furnished: false,
-};
+const fieldClass =
+  "w-full min-w-0 cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-brand-ink outline-none placeholder:font-normal placeholder:text-brand-muted";
 
 const bedroomOptions = ["Any", "1", "2", "3", "4+"];
 
@@ -238,17 +253,19 @@ export default function Search() {
 
   // Buynidify only deals in properties to buy - there is no rental search.
   const transactionType = "sale" as const;
+  // LocationCombobox takes free text as well as list choices, so one piece
+  // of state covers both cities and postcodes.
   const [location, setLocation] = useState("London");
-  const [useCustomLocation, setUseCustomLocation] = useState(false);
-  const [customLocation, setCustomLocation] = useState("");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [bedrooms, setBedrooms] = useState("Any");
   const [portalPropertyType, setPortalPropertyType] = useState<PortalPropertyType>("Any");
-  const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [view, setView] = useState<"list" | "map">("list");
+  // Filtering is live, so the Search button's job is to take you to the
+  // results rather than to trigger a fetch.
+  const resultsRef = useRef<HTMLDivElement>(null);
 
-  const effectiveLocation = useCustomLocation ? customLocation : location;
+  const effectiveLocation = location;
   const mockTypes = portalTypeToMockTypes[portalPropertyType];
 
   const minBeds = bedrooms === "Any" ? 0 : parseInt(bedrooms, 10);
@@ -260,14 +277,9 @@ export default function Search() {
       if (p.beds < minBeds) return false;
       if (p.price > maxPriceNum || p.price < minPriceNum) return false;
       if (mockTypes && !mockTypes.includes(p.type)) return false;
-      if (filters.furnished && !p.furnished) return false;
       return true;
     });
-  }, [minBeds, maxPriceNum, minPriceNum, mockTypes, filters]);
-
-  function toggle(key: keyof Filters) {
-    setFilters((f) => ({ ...f, [key]: !f[key] }));
-  }
+  }, [minBeds, maxPriceNum, minPriceNum, mockTypes]);
 
   return (
     <div>
@@ -280,132 +292,143 @@ export default function Search() {
           : "Homes for sale, matched to what you're looking to buy."}
       </p>
 
-      {/* Search Real UK Listings - deep-links out to the real portals */}
-      <div className="mt-6 rounded-2xl border border-brand-border bg-brand-surface p-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-white">
-            🔍
-          </span>
-          <div>
-            <p className="font-display text-lg font-semibold text-brand-ink">
-              Search Real UK Listings
-            </p>
-            <p className="text-xs text-brand-muted">
-              Opens live results on Rightmove, Zoopla &amp; OnTheMarket
-            </p>
-          </div>
-        </div>
+      {/* SEARCH CONSOLE
+          Blend of the two patterns worth stealing:
+          - Airbnb: one elevated pill split into segments, each with a tiny
+            label above its value, whole segment highlights on hover, solid
+            action button welded to the end.
+          - Rightmove: price as a min->to->max pair in a single segment, and
+            a live result count sitting right under the bar.
+          Everything filters instantly; Search just jumps you to the results. */}
+      {/* Same white bar and near-black pill button as the landing page hero,
+          so the two searches read as one product. */}
+      <div className="mt-6 rounded-[28px] border border-brand-border bg-white p-2 shadow-xl shadow-brand-ink/10">
+        <div className="flex flex-col divide-y divide-brand-ink/10 lg:flex-row lg:items-stretch lg:divide-x lg:divide-y-0">
+          {/* Exactly the component the landing hero uses, so clicking the
+              field opens the same list here. It already accepts free text,
+              which is what the old "type a postcode instead" toggle was
+              for - that toggle is gone, which also fixes this segment
+              being taller than the others. */}
+          <Segment label="Location" className="lg:flex-[1.5]">
+            <LocationCombobox
+              options={ukCities}
+              value={location}
+              onChange={setLocation}
+            />
+          </Segment>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-brand-muted">
-            Location
-            {useCustomLocation ? (
+          <Segment label="Price range" className="lg:flex-[1.3]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-brand-muted">£</span>
+              {/* Text inputs, not number - only text fields can show the
+                  thousands separators, and it drops the spinner arrows. */}
               <input
                 type="text"
-                value={customLocation}
-                onChange={(e) => setCustomLocation(e.target.value)}
-                placeholder="City, area, or postcode"
-                className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
+                inputMode="numeric"
+                value={formatThousands(priceMin)}
+                onChange={(e) => setPriceMin(digitsOnly(e.target.value))}
+                placeholder="Min"
+                className={`${fieldClass} w-20`}
               />
-            ) : (
-              <select
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-              >
-                {ukCities.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
+              <span className="flex-shrink-0 text-xs text-brand-muted">to</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatThousands(priceMax)}
+                onChange={(e) => setPriceMax(digitsOnly(e.target.value))}
+                placeholder="Max"
+                className={`${fieldClass} w-20`}
+              />
+            </div>
+          </Segment>
+
+          <Segment label="Bedrooms">
+            <select
+              value={bedrooms}
+              onChange={(e) => setBedrooms(e.target.value)}
+              className={fieldClass}
+            >
+              {bedroomOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b === "Any" ? "Any beds" : `${b} bed${b === "1" ? "" : "s"}`}
+                </option>
+              ))}
+            </select>
+          </Segment>
+
+          {/* Same icon-grid popover as the hero, not a native select. */}
+          <Segment label="Property type" className="lg:flex-[1.2]">
+            <PropertyTypeCombobox
+              value={portalPropertyType}
+              onChange={setPortalPropertyType}
+            />
+          </Segment>
+
+          <div className="flex items-center pt-2 lg:pl-2 lg:pt-0">
             <button
               type="button"
-              onClick={() => setUseCustomLocation((v) => !v)}
-              className="mt-1 text-[11px] font-medium normal-case text-brand-blue hover:underline"
+              onClick={() =>
+                resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+              className="group flex w-full items-center justify-center gap-3 rounded-full bg-brand-ink py-2.5 pl-6 pr-2.5 text-sm font-semibold text-white transition-all duration-200 hover:shadow-xl lg:w-auto"
             >
-              {useCustomLocation
-                ? "Choose from city list"
-                : "Enter custom location or postcode"}
+              Search Property
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-brand-ink transition-transform duration-200 group-hover:scale-105">
+                <SearchIcon className="h-4 w-4" />
+              </span>
             </button>
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-brand-muted">
-              Min price (£)
-              <input
-                type="number"
-                value={priceMin}
-                onChange={(e) => setPriceMin(e.target.value)}
-                placeholder="100,000"
-                className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-              />
-            </label>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-brand-muted">
-              Max price (£)
-              <input
-                type="number"
-                value={priceMax}
-                onChange={(e) => setPriceMax(e.target.value)}
-                placeholder="500,000"
-                className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-              />
-            </label>
           </div>
         </div>
+      </div>
 
-        <div className="mt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">
-            Bedrooms
-          </p>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {bedroomOptions.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBedrooms(b)}
-                className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                  bedrooms === b
-                    ? "border-brand-blue bg-brand-blue text-white"
-                    : "border-brand-border bg-white text-brand-ink hover:border-brand-blue"
-                }`}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">
-            Property Type
-          </p>
-          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {portalPropertyTypeOptions.map(({ value, label, Icon }) => {
-              const active = portalPropertyType === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPortalPropertyType(value)}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
-                    active
-                      ? "border-brand-blue bg-brand-blue text-white"
-                      : "border-brand-border bg-white text-brand-ink hover:border-brand-blue"
-                  }`}
-                >
-                  <Icon className={`h-4 w-4 flex-shrink-0 ${active ? "text-white" : "text-brand-blue"}`} />
-                  <span className="truncate">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-brand-muted">
-          Open on Portal
+      {/* Live count, sitting directly under the bar the way portal result
+          counts do. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
+        <p className="text-sm text-brand-muted">
+          <span className="font-semibold text-brand-ink">{results.length}</span>{" "}
+          propert{results.length === 1 ? "y" : "ies"} on Buynidify
+          {effectiveLocation ? ` near ${effectiveLocation}` : ""}
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
+          <button
+            type="button"
+            onClick={() => {
+              setPriceMin("");
+              setPriceMax("");
+              setBedrooms("Any");
+              setPortalPropertyType("Any");
+            }}
+            className="text-xs font-semibold text-brand-muted underline-offset-2 hover:text-brand-blue hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Same filters, pushed out to the real UK market. */}
+      <div className="mt-5 rounded-2xl border border-brand-border bg-brand-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            Search these filters on the real portals
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              openAllPortals({
+                transactionType,
+                location: effectiveLocation,
+                priceMin,
+                priceMax,
+                bedrooms,
+                propertyType: portalPropertyType,
+              })
+            }
+            className="text-xs font-semibold text-brand-blue hover:underline"
+          >
+            Open all three ↗
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {(Object.keys(portalMeta) as (keyof typeof portalMeta)[]).map((portal) => (
             <a
               key={portal}
@@ -419,20 +442,15 @@ export default function Search() {
               })}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-xl border border-brand-border bg-white px-4 py-3 transition-colors hover:border-brand-blue"
+              className="group flex items-center gap-2.5 rounded-xl border border-brand-border bg-white px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-blue hover:shadow-md"
             >
               <span
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${portalMeta[portal].badge}`}
+                className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${portalMeta[portal].badge}`}
               >
                 {portalMeta[portal].initial}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-brand-ink">
-                  {portalMeta[portal].label}
-                </span>
-                <span className="block truncate text-xs text-brand-muted">
-                  For sale · {effectiveLocation || "UK"}
-                </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-ink">
+                {portalMeta[portal].label}
               </span>
               <span
                 aria-hidden
@@ -443,48 +461,20 @@ export default function Search() {
             </a>
           ))}
         </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            openAllPortals({
-              transactionType,
-              location: effectiveLocation,
-              priceMin,
-              priceMax,
-              bedrooms,
-              propertyType: portalPropertyType,
-            })
-          }
-          className="mt-3 w-full rounded-xl border border-brand-blue bg-brand-blue-light px-4 py-2.5 text-sm font-semibold text-brand-blue transition-colors hover:bg-brand-blue hover:text-white"
-        >
-          Open all three portals at once
-        </button>
       </div>
 
-      {/* Found something on a real portal? Paste the link and run the same
-          AI-check flow that already exists on the live product's My
-          Properties page (tenant-only there, so kept tenant-only here). */}
-      {!isInvestor && <PropertyLinkImporter />}
+      {/* Found something on a real portal? Paste the link and run the AI
+          check. Both roles get this now - the component itself switches
+          between the investor (yield + publish to tenants) and tenant
+          (affordability + register interest) flows. */}
+      <PropertyLinkImporter />
 
       {/* Browse listings already on Buynidify, filtered by the same criteria above */}
-      <div className="mt-8">
+      <div ref={resultsRef} className="mt-8 scroll-mt-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-brand-muted">
-              {results.length} propert{results.length === 1 ? "y" : "ies"} found on Buynidify
-              {effectiveLocation ? ` matching "${effectiveLocation}"` : ""}
-            </p>
-            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-brand-border bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink">
-              <input
-                type="checkbox"
-                checked={filters.furnished}
-                onChange={() => toggle("furnished")}
-                className="accent-brand-blue"
-              />
-              Furnished only
-            </label>
-          </div>
+          <h2 className="font-display text-xl font-semibold tracking-tight text-brand-ink">
+            {results.length} propert{results.length === 1 ? "y" : "ies"} on Buynidify
+          </h2>
           <div className="flex rounded-lg border border-brand-border bg-white p-0.5">
             <button
               onClick={() => setView("list")}

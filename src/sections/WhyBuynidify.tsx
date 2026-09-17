@@ -17,7 +17,7 @@ export default function WhyBuynidify() {
             The Platform Edge
           </p>
           <h2 className="font-display text-3xl font-semibold tracking-tight text-brand-ink sm:text-4xl">
-            Why Smart Investors Choose Buynidify
+            Why New-Generation Investors Choose Buynidify
           </h2>
           <p className="mt-3 max-w-xl text-brand-muted">
             Combining real estate industry security with next-generation

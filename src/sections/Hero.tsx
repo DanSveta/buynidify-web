@@ -1,118 +1,111 @@
-import Button from "../components/Button";
 import LocationCombobox from "../components/LocationCombobox";
 import PropertyTypeCombobox from "../components/PropertyTypeCombobox";
 import PriceRangeCombobox from "../components/PriceRangeCombobox";
-import { SearchIcon } from "../components/icons";
+import { ArrowRightIcon, PinIcon, SearchIcon } from "../components/icons";
 import { priceRanges, ukCities } from "../lib/content";
-import { palettes } from "../lib/palettes";
-import { useTheme } from "../app/context/ThemeContext";
 
 export default function Hero() {
-  const { paletteId } = useTheme();
-  const palette = palettes.find((p) => p.id === paletteId) ?? palettes[0];
-  const heroStyle = palette.heroStyle ?? "gradient";
-
   return (
-    // z-10 (not just relative) so this section - and the search dropdowns
-    // inside it - paints above the section below instead of being covered
-    // by it. overflow-hidden removed: it was clipping the location dropdown
-    // whenever the open list was taller than the hero image, hiding most of
-    // it ("under the picture").
-    // min-h fills the viewport below the sticky navbar (~73px tall) so the
-    // hero is a proper "full page" - the next section only comes into view
-    // once you actually scroll, instead of already peeking at the bottom.
+    // Full-bleed dark hero. The nav floats on top of it now, so this starts
+    // at the very top of the viewport rather than below a white bar.
+    // overflow-visible so the search dropdowns can escape the section.
     <section
       id="top"
-      className="relative z-10 flex min-h-[calc(100vh-73px)] items-center overflow-visible"
+      // items-center + a top pad matching the nav's footprint centres the
+      // block in the space *below the nav*, so the gap under the navbar and
+      // the gap under the search bar come out even.
+      className="relative z-10 flex min-h-screen items-center overflow-visible pb-16 pt-40"
     >
       <div
         className="absolute inset-0 overflow-hidden bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=60')",
-        }}
+        style={{ backgroundImage: "url('/hero.png')" }}
       />
-      {/* Solid color on the left, fading smoothly into the photo on the
-          right - not a hard split (that's what Andrew's HERO-OPTION-B got
-          wrong), a gradual blend so the picture reads clearly past ~2/3 of
-          the width. Uses brand-hero (usually = primary, but overridden to a
-          dark color for the green palette, whose bright-green primary
-          looked bad washed over a photo) rather than brand-blue directly.
-          Neon Blue and Purple keep the exact original fixed-navy wash this
-          section always had, before the gradient existed. */}
-      {heroStyle === "gradient" ? (
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-hero from-5% via-brand-hero/70 via-40% to-transparent to-85%" />
-      ) : (
-        <div className="absolute inset-0 bg-[#00234A]/55" />
-      )}
+      {/* Neutral black scrim rather than a brand colour - a coloured wash
+          fights the dusk tones. Lighter than it used to be: this photo is
+          already dark, so the old heavy scrim was burying the sunset and
+          the lit windows that make it worth using. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/35" />
 
-      <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center gap-5 px-6 py-16 text-center">
-        <span className="inline-flex items-center gap-2.5 rounded-2xl border border-brand-gold bg-[#00234A]/55 px-6 py-[18px] text-sm font-semibold text-white">
-          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-          </span>
-          Live in the UK: London &middot; Manchester &middot; Edinburgh &middot; Bristol
-        </span>
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-6">
+        <div className="max-w-4xl">
+          {/* The hero headline is the one place the serif wordmark face is
+              reused - that pairing (big serif headline, sans everywhere
+              else) is what the reference is actually doing. Sizes run a step
+              larger and the tracking is relaxed from -0.03em, because
+              Cormorant is delicate and tight spacing strangles it. */}
+          <h1 className="font-wordmark text-6xl font-semibold leading-[0.95] tracking-[-0.01em] text-white sm:text-7xl lg:text-8xl xl:text-[7rem]">
+            Buy well.
+            <br />
+            <span className="text-brand-gold">Live better.</span>
+          </h1>
 
-        <h1 className="max-w-3xl font-display text-5xl font-semibold leading-[1.15] tracking-tight text-white drop-shadow-lg sm:text-6xl">
-          Find Your Next Investment
-          <br />
-          or Dream Rental
-        </h1>
+          <p className="mt-8 max-w-md text-base leading-relaxed text-white/70">
+            The UK's first AI-powered property platform connecting investors,
+            tenants, and companies, with compliance built in from day one.
+          </p>
 
-        <p className="max-w-2xl text-base text-white/90 drop-shadow sm:text-lg">
-          The UK's first AI-powered property platform connecting investors,
-          tenants, and companies, with compliance built in from day one.
-        </p>
+          {/* The old "live in" chip is gone - the same information reads
+              better down here as the location line, the way the reference
+              does it. */}
+          <p className="mt-10 flex items-center gap-2 text-sm text-white/60">
+            <PinIcon className="h-4 w-4 flex-shrink-0 text-brand-gold" />
+            Live across the UK · London · Manchester · Edinburgh · Bristol
+          </p>
+        </div>
 
-        {/* Airbnb/Booking-style search pill: one continuous rounded bar on
-            desktop, divided into segments by hairlines, with a compact
-            circular search button at the end. Stacks into a simple card
-            on mobile. No new colors introduced - same brand-blue button
-            the original design used. */}
-        <form className="mt-4 w-full max-w-4xl rounded-[28px] bg-white p-2 shadow-2xl shadow-black/25 lg:rounded-full lg:p-2">
-          {/* Row layout only kicks in at lg (1024px) - below that, three
-              fields plus a select's native content width don't reliably
-              shrink to fit, which was overflowing the bar and getting
-              clipped by the section's overflow-hidden on anything narrower
-              than a full desktop window. Stacked full-width fields avoid
-              that entirely. */}
-          <div className="flex flex-col divide-y divide-brand-border lg:flex-row lg:items-center lg:divide-x lg:divide-y-0">
-            <div className="min-w-0 flex-1 rounded-full px-6 py-2.5 text-left transition-colors hover:bg-brand-surface focus-within:bg-brand-surface">
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-brand-blue">
+        {/* White, matching the section that follows - the bar now reads as
+            the top edge of the page content rather than a separate object
+            floating on the photo. */}
+        <form className="w-full rounded-[28px] bg-white p-2 shadow-2xl shadow-black/40">
+          <div className="flex flex-col divide-y divide-brand-ink/10 lg:flex-row lg:items-center lg:divide-x lg:divide-y-0">
+            <div className="min-w-0 flex-1 rounded-[22px] px-6 py-3 text-left transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
                 Location
               </label>
               <LocationCombobox options={ukCities} defaultValue="London, Greater London" />
             </div>
 
-            <div className="min-w-0 flex-1 rounded-full px-6 py-2.5 text-left transition-colors hover:bg-brand-surface focus-within:bg-brand-surface">
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-brand-blue">
-                Property Type
+            <div className="min-w-0 flex-1 rounded-[22px] px-6 py-3 text-left transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
+                Property type
               </label>
               <PropertyTypeCombobox />
             </div>
 
-            <div className="min-w-0 flex-1 rounded-full px-6 py-2.5 text-left transition-colors hover:bg-brand-surface focus-within:bg-brand-surface">
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-brand-blue">
-                Price Range
+            <div className="min-w-0 flex-1 rounded-[22px] px-6 py-3 text-left transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
+                Price range
               </label>
               <PriceRangeCombobox options={priceRanges} defaultValue={priceRanges[0]} />
             </div>
 
-            <div className="pt-2 lg:pt-0 lg:pl-1">
-              <Button
+            <div className="pt-2 lg:pl-2 lg:pt-0">
+              {/* Near-black pill with the label on the left and the icon in
+                  its own circle on the right. */}
+              <button
                 type="submit"
-                variant="secondary"
-                className="flex w-full items-center justify-center gap-2 !rounded-full px-8 py-3.5 lg:h-14"
+                className="group flex w-full items-center justify-center gap-3 rounded-full bg-brand-ink py-2.5 pl-6 pr-2.5 text-sm font-semibold text-white transition-all duration-200 hover:shadow-xl lg:w-auto"
               >
-                <SearchIcon className="h-4 w-4 flex-shrink-0 text-brand-gold" />
-                Search
-              </Button>
+                Search Property
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-brand-ink transition-transform duration-200 group-hover:scale-105">
+                  <SearchIcon className="h-4 w-4" />
+                </span>
+              </button>
             </div>
           </div>
         </form>
       </div>
+
+      {/* Scroll cue, mirroring the small circular controls in the corner of
+          the reference. */}
+      <a
+        href="#properties"
+        aria-label="Scroll to properties"
+        className="absolute bottom-8 right-8 hidden h-11 w-11 items-center justify-center rounded-full border border-white/25 text-white/70 transition-colors hover:border-white hover:text-white lg:flex"
+      >
+        <ArrowRightIcon className="h-4 w-4 rotate-90" />
+      </a>
     </section>
   );
 }

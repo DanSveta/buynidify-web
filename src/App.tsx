@@ -16,6 +16,7 @@ import LocalServices from "./app/pages/LocalServices";
 import Profile from "./app/pages/Profile";
 import Verification from "./app/pages/Verification";
 import PlatformListings from "./app/pages/PlatformListings";
+import Messages from "./app/pages/Messages";
 import Pricing from "./app/pages/Pricing";
 import HowItWorks from "./app/pages/HowItWorks";
 import Relocate from "./app/pages/Relocate";
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="verification" element={<Verification />} />
             <Route path="platform-listings" element={<PlatformListings />} />
+            <Route path="messages" element={<Messages />} />
             <Route path="pricing" element={<Pricing />} />
             <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="relocate" element={<Relocate />} />

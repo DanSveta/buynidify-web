@@ -1,20 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { PinIcon } from "./icons";
+import { useDropDirection } from "./useDropDirection";
 
 type LocationComboboxProps = {
   options: string[];
   defaultValue?: string;
   placeholder?: string;
+  /** Pass value + onChange to drive it from outside (the app's Search page
+   *  filters real results with it). Omit both and it manages itself, which
+   *  is all the landing page needs. */
+  value?: string;
+  onChange?: (value: string) => void;
 };
 
 // A location field that's both typeable and choosable: type to filter the
 // UK city list live, or open it and click one. Keyboard-navigable too.
+// Because it takes free text, there's no need for a separate "enter a
+// postcode instead" toggle anywhere it's used.
 export default function LocationCombobox({
   options,
   defaultValue = "",
   placeholder = "Search a UK city or region...",
+  value: controlledValue,
+  onChange,
 }: LocationComboboxProps) {
-  const [query, setQuery] = useState(defaultValue);
+  const [uncontrolled, setUncontrolled] = useState(defaultValue);
+  const query = controlledValue ?? uncontrolled;
+  const setQuery = (next: string) => {
+    if (controlledValue === undefined) setUncontrolled(next);
+    onChange?.(next);
+  };
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   // Opening the field (focus/click) should always browse the full list.
@@ -24,6 +39,7 @@ export default function LocationCombobox({
   // and hiding every other city.
   const [isTyping, setIsTyping] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const dropUp = useDropDirection(open, rootRef);
 
   const filtered =
     !isTyping || query.trim() === ""
@@ -94,7 +110,7 @@ export default function LocationCombobox({
       </div>
 
       {open && (
-        <div className="absolute left-1/2 top-full z-30 mt-3 w-72 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-0 lg:-translate-x-0">
+        <div className={`absolute left-1/2 z-30 ${dropUp ? "bottom-full mb-3" : "top-full mt-3"} w-72 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-0 lg:-translate-x-0`}>
           <p className="border-b border-brand-border bg-brand-surface px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-brand-muted">
             {filtered.length > 0 ? "Popular UK locations" : "No matches"}
           </p>

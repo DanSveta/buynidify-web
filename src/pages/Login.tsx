@@ -53,7 +53,7 @@ export default function Login() {
         <div className="mb-10 text-center">
           <Link
             to="/"
-            className="font-display text-2xl font-semibold tracking-tight text-brand-blue"
+            className="font-wordmark text-[2.1rem] font-medium leading-none tracking-[0.015em] text-brand-blue"
           >
             Buynidify
           </Link>

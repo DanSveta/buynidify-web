@@ -217,14 +217,55 @@ export const testimonials: Testimonial[] = [
 export type Partner = {
   name: string;
   url: string;
+  /** Path to the official logo file in /public/logos. Falls back to the
+   *  name as a styled wordmark when the file isn't there yet. */
+  logo?: string;
 };
 
 export const partners: Partner[] = [
-  { name: "rightmove", url: "https://www.rightmove.co.uk" },
-  { name: "zoopla", url: "https://www.zoopla.co.uk" },
-  { name: "thirdfort", url: "https://www.thirdfort.com" },
-  { name: "GoCardless", url: "https://gocardless.com" },
-  { name: "HM Land Registry", url: "https://www.gov.uk/government/organisations/land-registry" },
+  // Listings, payments, ID checks and registry
+  { name: "Rightmove", url: "https://www.rightmove.co.uk", logo: "/logos/rightmove.svg" },
+  { name: "Zoopla", url: "https://www.zoopla.co.uk", logo: "/logos/zoopla.svg" },
+  { name: "Thirdfort", url: "https://www.thirdfort.com", logo: "/logos/thirdfort.svg" },
+  { name: "GoCardless", url: "https://gocardless.com", logo: "/logos/gocardless.svg" },
+  {
+    name: "HM Land Registry",
+    url: "https://www.gov.uk/government/organisations/land-registry",
+    logo: "/logos/hm-land-registry.svg",
+  },
+  // Cleaning - end-of-tenancy and move-in cleans
+  { name: "Housekeep", url: "https://housekeep.com", logo: "/logos/housekeep.svg" },
+  {
+    name: "Fantastic Services",
+    url: "https://www.fantasticservices.com",
+    logo: "/logos/fantastic-services.svg",
+  },
+  { name: "MOLLY MAID", url: "https://www.mollymaid.co.uk", logo: "/logos/molly-maid.svg" },
+  // Insurance - landlord, buildings and contents
+  { name: "Aviva", url: "https://www.aviva.co.uk", logo: "/logos/aviva.svg" },
+  { name: "Direct Line", url: "https://www.directlineforbusiness.co.uk", logo: "/logos/direct-line.svg" },
+  { name: "Simply Business", url: "https://www.simplybusiness.co.uk", logo: "/logos/simply-business.svg" },
+  { name: "Hiscox", url: "https://www.hiscox.co.uk", logo: "/logos/hiscox.svg" },
+  // Removals and relocation
+  { name: "Pickfords", url: "https://www.pickfords.co.uk", logo: "/logos/pickfords.svg" },
+  { name: "AnyVan", url: "https://www.anyvan.com", logo: "/logos/anyvan.svg" },
+  {
+    name: "Crown Relocations",
+    url: "https://www.crownrelo.com",
+    logo: "/logos/crown-relocations.svg",
+  },
+  // Deposits, redress and the third major portal
+  { name: "OnTheMarket", url: "https://www.onthemarket.com", logo: "/logos/onthemarket.svg" },
+  {
+    name: "Tenancy Deposit Scheme",
+    url: "https://www.tenancydepositscheme.com",
+    logo: "/logos/tenancy-deposit-scheme.svg",
+  },
+  {
+    name: "The Property Ombudsman",
+    url: "https://www.tpos.co.uk",
+    logo: "/logos/property-ombudsman.svg",
+  },
 ];
 
 export type LocationCard = {

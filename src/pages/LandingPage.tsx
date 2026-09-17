@@ -1,4 +1,5 @@
 import Navbar from "../components/Navbar";
+import ThemeDock from "../components/ThemeDock";
 import Footer from "../components/Footer";
 import Hero from "../sections/Hero";
 import FeaturedProperties from "../sections/FeaturedProperties";
@@ -32,6 +33,7 @@ export default function LandingPage() {
         <RelocationAI />
       </main>
       <Footer />
+      <ThemeDock />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { CompassIcon, HandshakeIcon, VrIcon } from "../components/icons";
 import { steps, type Step } from "../lib/content";
+// Animation experiments are intentionally disabled for now.
+// Uncomment this import and the component below when they are ready to ship.
+// import HowItWorksShowcase from "./HowItWorksShowcase";
 
 const icons: Record<Step["icon"], React.ComponentType<{ className?: string }>> = {
   discover: CompassIcon,
@@ -50,20 +53,7 @@ export default function HowItWorks() {
         })}
       </div>
 
-      {/* Placeholder only - marks where a real animation goes later, not a
-          finished asset. */}
-      <div className="mt-10 flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-brand-gold/60 bg-brand-surface p-10 text-center">
-        <span className="animate-bounce text-4xl" aria-hidden>
-          🎬
-        </span>
-        <p className="font-display text-base font-semibold tracking-tight text-brand-ink">
-          [ Animation goes here ]
-        </p>
-        <p className="max-w-sm text-sm text-brand-muted">
-          Placeholder for later - picture the three steps above playing out as
-          a short, friendly animation right in this spot.
-        </p>
-      </div>
+      {/* <HowItWorksShowcase /> */}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon, DollarIcon } from "./icons";
+import { useDropDirection } from "./useDropDirection";
 
 type Props = {
   options: string[];
@@ -13,6 +14,7 @@ export default function PriceRangeCombobox({ options, defaultValue }: Props) {
   const [value, setValue] = useState(defaultValue ?? options[0]);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const dropUp = useDropDirection(open, rootRef);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -38,7 +40,7 @@ export default function PriceRangeCombobox({ options, defaultValue }: Props) {
       </button>
 
       {open && (
-        <div className="absolute left-1/2 top-full z-30 mt-3 w-64 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-auto lg:right-0 lg:-translate-x-0">
+        <div className={`absolute left-1/2 z-30 ${dropUp ? "bottom-full mb-3" : "top-full mt-3"} w-64 max-w-[90vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-2xl lg:left-auto lg:right-0 lg:-translate-x-0`}>
           <p className="border-b border-brand-border bg-brand-surface px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-brand-muted">
             Price range
           </p>

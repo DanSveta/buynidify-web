@@ -9,7 +9,7 @@ export default function Footer() {
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-blue" />
-              <span className="font-display text-xl font-semibold tracking-tight text-brand-ink">
+              <span className="font-wordmark text-[1.6rem] font-medium tracking-[0.015em] leading-none text-brand-ink">
                 Buynidify
               </span>
             </div>
