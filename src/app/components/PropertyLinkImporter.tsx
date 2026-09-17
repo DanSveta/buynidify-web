@@ -476,7 +476,10 @@ export default function PropertyLinkImporter() {
                         <Metric label="Available" value={p.published.availableFrom || "Now"} />
                         <Metric label="Status" value="Live to tenants" />
                       </div>
-                      {p.published.accepts.length > 0 && (
+                      {/* Optional chaining matters here: properties published
+                          before this field existed are still in localStorage
+                          with no `accepts` at all. */}
+                      {(p.published.accepts?.length ?? 0) > 0 && (
                         <p className="mt-2 text-[11px] text-brand-ink">
                           <span className="font-semibold">Accepting:</span>{" "}
                           {p.published.accepts.join(", ")}

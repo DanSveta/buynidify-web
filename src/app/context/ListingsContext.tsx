@@ -289,6 +289,19 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   );
   const [threads, setThreads] = usePersistedState<MessageThread[]>("buynidify:threads", []);
 
+  // Anything persisted by an earlier build can be missing fields added since.
+  // Normalising on read means a schema change never crashes the app for
+  // someone who already has data in localStorage - they just see the default.
+  const safeImportedProperties = useMemo(
+    () =>
+      importedProperties.map((p) =>
+        p.published && !p.published.accepts
+          ? { ...p, published: { ...p.published, accepts: [] } }
+          : p
+      ),
+    [importedProperties]
+  );
+
   const tenantInterestIds = useMemo(() => new Set(tenantInterestList), [tenantInterestList]);
   const investorResponseIds = useMemo(() => new Set(investorResponseList), [investorResponseList]);
 
@@ -450,7 +463,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         sendMessage,
         matches,
         matchesAsDeals,
-        importedProperties,
+        importedProperties: safeImportedProperties,
         addImportedProperty,
         updateImportedProperty,
         removeImportedProperty,
