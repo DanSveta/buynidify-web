@@ -2,19 +2,20 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PropertyLinkImporter from "../components/PropertyLinkImporter";
 import { useRole } from "../context/RoleContext";
-import { deals } from "../data/mockData";
 import {
-  agreementSteps,
   useListings,
-  type AgreementStage,
   type ImportedProperty,
   type InterestedTenant,
 } from "../context/ListingsContext";
 import TenantProfileModal from "../components/TenantProfileModal";
 import PublishModal from "../components/PublishModal";
+import AgreementTimeline from "../components/AgreementTimeline";
 import { buildInvestorAnalysis } from "../utils/analysis";
 import { propertyImage } from "../utils/propertyImages";
 import { useAuthGate } from "../context/AuthGateContext";
+import Avatar from "../components/Avatar";
+import { avatarFor } from "../utils/avatars";
+import { selfProfile, profileFromInterestedTenant, type PartyProfile } from "../utils/profiles";
 
 // My Properties is the investor's control room for properties they've already
 // added. Adding one happens on Search, where you're looking for them anyway.
@@ -89,105 +90,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ProgressTracker({
-  property,
-  onAdvance,
-  onCancel,
-}: {
-  property: ImportedProperty;
-  onAdvance: (stage: AgreementStage) => void;
-  onCancel: () => void;
-}) {
-  const agreement = property.agreement;
-  if (!agreement) return null;
-  const current = agreementSteps.findIndex((s) => s.id === agreement.stage);
-  const next = agreementSteps[current + 1];
-  const step = agreementSteps[current];
-
-  return (
-    <div className="mt-4 rounded-xl bg-brand-ink p-5 text-white">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-white/60">
-            Progress with {agreement.tenantName}
-          </p>
-          <p className="mt-1 font-display text-lg font-semibold">{step.label}</p>
-          <p className="mt-0.5 max-w-md text-xs text-white/70">{step.detail}</p>
-        </div>
-        <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold">
-          {step.actor === "Done" ? "Complete" : `With ${step.actor.toLowerCase()}`}
-        </span>
-      </div>
-
-      <ol className="mt-5 space-y-2.5">
-        {agreementSteps.map((s, i) => {
-          const done = i < current;
-          const active = i === current;
-          return (
-            <li key={s.id} className="flex items-start gap-3">
-              <span
-                className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-                  done
-                    ? "bg-white/20 text-white"
-                    : active
-                      ? "bg-brand-cta text-brand-cta-text"
-                      : "bg-white/10 text-white/40"
-                }`}
-              >
-                {done ? "✓" : i + 1}
-              </span>
-              <span className="min-w-0">
-                <span
-                  className={`block text-sm ${
-                    active ? "font-semibold" : done ? "text-white/80" : "text-white/40"
-                  }`}
-                >
-                  {s.label}
-                </span>
-                {(active || done) && (
-                  <span className="block text-[11px] text-white/50">{s.detail}</span>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-
-      {next ? (
-        <button
-          type="button"
-          onClick={() => onAdvance(next.id)}
-          className="mt-5 w-full rounded-lg bg-brand-cta px-4 py-2.5 text-sm font-semibold text-brand-cta-text"
-        >
-          Advance to {next.label.toLowerCase()}
-        </button>
-      ) : (
-        <p className="mt-5 rounded-lg bg-white/10 px-4 py-2.5 text-center text-sm font-semibold">
-          Tenancy active
-        </p>
-      )}
-
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-[10px] text-white/50">
-          Buynidify coordinates the steps between you and the tenant. You are not negotiating
-          directly, and you only buy once the deposit is secured.
-        </p>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-shrink-0 text-[11px] font-semibold text-white/50 hover:text-white"
-        >
-          Withdraw
-        </button>
-      </div>
-      <p className="mt-2 text-[10px] text-white/40">
-        Demo note: in the real product these steps advance as the team completes them. The button
-        is here so you can walk through the flow.
-      </p>
-    </div>
-  );
-}
-
 function TenantRow({
   tenant,
   canSelect,
@@ -202,12 +104,15 @@ function TenantRow({
   const verified = tenant.referencing === "Verified";
   return (
     <li className="flex flex-wrap items-center gap-3 border-b border-brand-border py-3 last:border-0">
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-[11px] font-bold text-white">
-        {tenant.initials}
-      </span>
+      <Avatar name={tenant.name} initials={tenant.initials} photoUrl={avatarFor(tenant.name)} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <p className="text-sm font-semibold text-brand-ink">{tenant.name}</p>
+          {tenant.isYou && (
+            <span className="rounded-full bg-brand-blue-light px-2 py-0.5 text-[10px] font-bold text-brand-blue">
+              You
+            </span>
+          )}
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
               verified ? "bg-emerald-100 text-emerald-700" : "bg-brand-gold/20 text-brand-gold-dark"
@@ -252,7 +157,9 @@ function PropertyCard({
   interested: InterestedTenant[];
   onOpenTenant: (tenant: InterestedTenant) => void;
 }) {
-  const { updateImportedProperty, removeImportedProperty } = useListings();
+  const { updateImportedProperty, removeImportedProperty, advanceAgreement, acceptConnection } =
+    useListings();
+  const { namesByRole } = useRole();
   const { requireAccount } = useAuthGate();
   const [open, setOpen] = useState(false);
   const [analysing, setAnalysing] = useState(false);
@@ -263,6 +170,34 @@ function PropertyCard({
   const analysis = property.analysis?.kind === "investor" ? property.analysis : null;
   const rent = property.published?.rent ?? analysis?.monthlyRent;
   const verifiedCount = interested.filter((t) => t.referencing === "Verified").length;
+
+  // The tenant side of the agreement panel: your own tenant persona when
+  // that's who it is (the usual case, walking the demo end to end yourself),
+  // otherwise built from whichever interested tenant was picked, so their
+  // real details show instead of just a name and initials.
+  const agreementTenant: PartyProfile | null = property.agreement
+    ? property.agreement.tenantId === "you"
+      ? selfProfile(`tenant-${property.id}`, namesByRole.tenant, "Tenant")
+      : (() => {
+          const match = interested.find((t) => t.id === property.agreement!.tenantId);
+          return match
+            ? profileFromInterestedTenant(match)
+            : {
+                id: `tenant-${property.agreement!.tenantId}`,
+                name: property.agreement!.tenantName,
+                initials: property.agreement!.tenantInitials,
+                role: "Tenant" as const,
+                location: "",
+                memberSince: "",
+                responseTime: "",
+                responseRate: "",
+                photoUrl: avatarFor(property.agreement!.tenantName),
+                verified: { idCheck: true, referencing: true, funds: true },
+                about: "",
+                details: [],
+              };
+        })()
+    : null;
 
   function runAnalysis() {
     setAnalysing(true);
@@ -286,6 +221,10 @@ function PropertyCard({
         startedAt: new Date().toISOString(),
       },
     });
+    // This tenant's interest is exactly what's being accepted by starting
+    // the agreement - without this, Mutual Matches kept showing it as still
+    // "waiting for your reply" even after the deal had already moved on.
+    acceptConnection(property.id);
   }
 
   return (
@@ -466,16 +405,23 @@ function PropertyCard({
           </div>
 
           {/* Agreement */}
-          {property.agreement && (
-            <ProgressTracker
-              property={property}
-              onAdvance={(stage) =>
-                updateImportedProperty(property.id, {
-                  agreement: { ...property.agreement!, stage },
-                })
-              }
-              onCancel={() => updateImportedProperty(property.id, { agreement: null })}
-            />
+          {property.agreement && agreementTenant && (
+            <div className="mt-5">
+              <AgreementTimeline
+                agreement={property.agreement}
+                investor={selfProfile(`investor-${property.id}`, namesByRole.investor, "Investor")}
+                tenant={agreementTenant}
+                viewerRole="investor"
+                onAdvance={(by) => advanceAgreement(property.id, by)}
+              />
+              <button
+                type="button"
+                onClick={() => updateImportedProperty(property.id, { agreement: null })}
+                className="mt-2 text-[11px] font-semibold text-brand-muted hover:text-red-600"
+              >
+                Withdraw this agreement
+              </button>
+            </div>
           )}
 
           {/* Property actions */}
@@ -540,10 +486,13 @@ function MyPropertiesInvestor() {
   const { role } = useRole();
   const { promptSignUp } = useAuthGate();
   const { importedProperties, interestedTenantsFor } = useListings();
-  const [openTenant, setOpenTenant] = useState<{ tenant: InterestedTenant; context: string } | null>(
-    null
-  );
+  const [openTenant, setOpenTenant] = useState<
+    { tenant: InterestedTenant; context: string; propertyId: string } | null
+  >(null);
   const [filter, setFilter] = useState<FilterId>("all");
+  // Signed out the search lives at /search rather than inside the portal, so
+  // every link back to it has to follow.
+  const searchPath = role ? "/app/search" : "/search";
 
   // Signed out, this page shows what you've analysed while browsing.
   const mine = useMemo(
@@ -613,7 +562,7 @@ function MyPropertiesInvestor() {
       )}
 
       <Link
-        to="/app/search"
+        to={searchPath}
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
         + Add a property
@@ -656,7 +605,7 @@ function MyPropertiesInvestor() {
           {mine.length === 0 ? (
             <>
               No properties yet. Add one from{" "}
-              <Link to="/app/search" className="font-semibold text-brand-blue hover:underline">
+              <Link to={searchPath} className="font-semibold text-brand-blue hover:underline">
                 Search Properties
               </Link>{" "}
               by pasting a Rightmove, Zoopla or OnTheMarket link.
@@ -673,7 +622,11 @@ function MyPropertiesInvestor() {
               property={property}
               interested={interested}
               onOpenTenant={(tenant) =>
-                setOpenTenant({ tenant, context: `${property.title}, ${property.location}` })
+                setOpenTenant({
+                  tenant,
+                  context: `${property.title}, ${property.location}`,
+                  propertyId: property.id,
+                })
               }
             />
           ))}
@@ -684,6 +637,7 @@ function MyPropertiesInvestor() {
         <TenantProfileModal
           tenant={openTenant.tenant}
           context={openTenant.context}
+          propertyId={openTenant.propertyId}
           onClose={() => setOpenTenant(null)}
         />
       )}
@@ -692,11 +646,21 @@ function MyPropertiesInvestor() {
 }
 
 function MyPropertiesTenant() {
-  // Current tenancy (if a lease exists) + any properties in an active deal
-  // (deposit paid or purchase in progress), plus the paste-a-link + AI
-  // analysis flow (same as the live product's My Properties page).
-  const myDeals = deals.filter((d) => d.stage !== "matched");
-  const currentHome = myDeals.find((d) => d.stage === "lease-signed");
+  // Current tenancy (if a lease is signed) + anything moving through a deal
+  // right now, plus the paste-a-link + AI analysis flow (same as the live
+  // product's My Properties page). Reads the same `agreement` an investor
+  // starts from their side, filtered to deals where you're the tenant on
+  // it - not a disconnected mock list that never matched what actually
+  // happened in the app.
+  const { namesByRole } = useRole();
+  const { importedProperties, advanceAgreement } = useListings();
+
+  const myDeals = useMemo(
+    () => importedProperties.filter((p) => p.agreement && p.agreement.tenantId === "you"),
+    [importedProperties]
+  );
+  const currentHome = myDeals.find((p) => p.agreement!.stage === "tenancy-active");
+  const inProgress = myDeals.filter((p) => p.agreement!.stage !== "tenancy-active");
 
   return (
     <div>
@@ -717,26 +681,36 @@ function MyPropertiesTenant() {
       {currentHome && (
         <div className="mt-8 rounded-2xl border border-brand-blue bg-brand-blue-light p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">Current home</p>
-          <p className="mt-1 font-display text-lg font-semibold text-brand-ink">{currentHome.propertyAddress}</p>
-          <p className="text-sm text-brand-muted">{currentHome.city}</p>
+          <p className="mt-1 font-display text-lg font-semibold text-brand-ink">{currentHome.title}</p>
+          <p className="text-sm text-brand-muted">{currentHome.location}</p>
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-4">
-        {myDeals
-          .filter((d) => d.stage !== "lease-signed")
-          .map((deal) => (
-            <div key={deal.id} className="flex items-center justify-between rounded-2xl border border-brand-border bg-white p-5">
-              <div>
-                <p className="font-display text-base font-semibold text-brand-ink">{deal.propertyAddress}</p>
-                <p className="text-sm text-brand-muted">{deal.city}</p>
-              </div>
-              <span className="rounded-full bg-brand-surface px-3 py-1 text-xs font-semibold text-brand-ink">
-                {deal.stage === "deposit-paid" ? "Deposit paid" : "Purchase in progress"}
-              </span>
-            </div>
+      {inProgress.length > 0 && (
+        <div className="mt-6 flex flex-col gap-4">
+          {inProgress.map((p) => (
+            <AgreementTimeline
+              key={p.id}
+              agreement={p.agreement!}
+              investor={selfProfile(`investor-${p.id}`, namesByRole.investor, "Investor")}
+              tenant={selfProfile(`tenant-${p.id}`, namesByRole.tenant, "Tenant")}
+              viewerRole="tenant"
+              onAdvance={(by) => advanceAgreement(p.id, by)}
+            />
           ))}
-      </div>
+        </div>
+      )}
+
+      {myDeals.length === 0 && (
+        <div className="mt-6 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
+          Nothing in progress yet. Once an investor agrees to proceed with your interest, it shows up
+          here.
+        </div>
+      )}
+
+      <Link to="/app/deals" className="mt-4 inline-block text-sm font-semibold text-brand-blue hover:underline">
+        Open the full Deal Tracker →
+      </Link>
     </div>
   );
 }

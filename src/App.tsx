@@ -3,6 +3,7 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import PublicSearch from "./pages/PublicSearch";
 import PublicListings from "./pages/PublicListings";
+import PublicMyProperties from "./pages/PublicMyProperties";
 import AppLayout from "./app/AppLayout";
 import { RoleProvider } from "./app/context/RoleContext";
 import { ThemeProvider } from "./app/context/ThemeContext";
@@ -41,6 +42,9 @@ export default function App() {
           {/* Open to everyone: no account, no dashboard. */}
           <Route path="/search" element={<PublicSearch />} />
           <Route path="/listings" element={<PublicListings />} />
+          {/* Same page as the portal's, in the public chrome, so a property
+              you added while signed out behaves identically. */}
+          <Route path="/my-properties" element={<PublicMyProperties />} />
 
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Navigate to="overview" replace />} />

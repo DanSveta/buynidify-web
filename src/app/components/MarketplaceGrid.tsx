@@ -10,7 +10,7 @@ import { propertyImage } from "../utils/propertyImages";
 import ConnectTenantModal from "./ConnectTenantModal";
 import ProfilePanel from "./ProfilePanel";
 import { investorProfileFor, tenantProfileFor, type PartyProfile } from "../utils/profiles";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useFavorites } from "../context/FavoritesContext";
 import { useAuthGate } from "../context/AuthGateContext";
 
@@ -325,6 +325,17 @@ function InvestorListingCard({
               </button>
             )}
           </div>
+
+          {/* Registering interest used to look like nothing happened. It goes
+              somewhere, so say where. */}
+          {expressed && (
+            <Link
+              to="/app/matches"
+              className="mt-2 block text-center text-[11px] font-semibold text-brand-blue hover:underline"
+            >
+              The investor has been told. Track it in Matches →
+            </Link>
+          )}
         </div>
       </div>
     </article>
@@ -483,6 +494,15 @@ function TenantDemandCard({
               </button>
             )}
           </div>
+
+          {responded && (
+            <Link
+              to="/app/matches"
+              className="mt-2 block text-center text-[11px] font-semibold text-brand-blue hover:underline"
+            >
+              The tenant has been told. Track it in Matches →
+            </Link>
+          )}
         </div>
       </div>
 

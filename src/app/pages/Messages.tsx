@@ -1,17 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useListings } from "../context/ListingsContext";
+import { useListings, type MessageThread, type AgreementActor } from "../context/ListingsContext";
 import { useRole } from "../context/RoleContext";
 import ProfileSummary from "../components/ProfileSummary";
-import { minimalProfile, type PartyProfile } from "../utils/profiles";
+import Avatar from "../components/Avatar";
+import AgreementTimeline from "../components/AgreementTimeline";
+import { fallbackTenantProfile } from "../components/DealDetailPanel";
+import { minimalProfile, selfProfile, type PartyProfile, type PartyRole } from "../utils/profiles";
 
 // Platform-wide inbox, in three columns: conversations, the conversation
 // itself, and who you're talking to. The profile column is the point - on
 // Buynidify you're deciding whether to let to someone or rent from them, so
 // the answer to "who is this?" belongs beside the thread, not behind a click.
+//
+// A conversation that's about a matched property also shows that match, and
+// its live deal progress, right here - so the person you're talking to and
+// the reason you're talking to them are never two separate lookups.
+
+/** `investor-<id>` / `tenant-<id>` is the convention every property thread
+ *  uses everywhere else in the app (Matches, My Properties, the agreement
+ *  narration) - unwrapping it here is what connects a conversation back to
+ *  the property and agreement it's actually about. */
+function propertyIdFromCounterpartyId(id: string): string | null {
+  if (id.startsWith("investor-")) return id.slice("investor-".length);
+  if (id.startsWith("tenant-")) return id.slice("tenant-".length);
+  return null;
+}
+
 export default function Messages() {
-  const { threads, sendMessage, isThreadUnread, markThreadRead } = useListings();
-  const { role } = useRole();
+  const {
+    threads,
+    sendMessage,
+    isThreadUnread,
+    markThreadRead,
+    importedProperties,
+    connectionFor,
+    advanceAgreement,
+  } = useListings();
+  const { role, namesByRole } = useRole();
   const [activeId, setActiveId] = useState<string | null>(threads[0]?.counterpartyId ?? null);
   const [body, setBody] = useState("");
 
@@ -23,13 +49,64 @@ export default function Messages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.counterpartyId, active?.messages.length]);
 
-  // Whoever you are, the other side is the opposite role.
-  const counterpartyRole: PartyProfile["role"] = role === "tenant" ? "Investor" : "Tenant";
+  // Whoever you are, the other side is the opposite role - used only as a
+  // fallback guess for old threads with no profile snapshot at all.
+  const fallbackCounterpartyRole: PartyRole = role === "tenant" ? "Investor" : "Tenant";
 
-  const profile: PartyProfile | null = active
-    ? active.profile ??
-      minimalProfile(active.counterpartyId, active.counterpartyName, counterpartyRole)
+  // A message renders on your side of the conversation if the persona you're
+  // currently signed in as is the one who wrote it - checked fresh against
+  // the active role, not against a direction baked in when it was sent. That
+  // matters here specifically because one browser plays both sides: a
+  // message sent as investor has to flip sides when you switch to tenant and
+  // look at the same thread, instead of always reading as "me".
+  function isMine(m: { from: "me" | "them"; senderRole?: "investor" | "tenant" }) {
+    if (m.senderRole) return m.senderRole === role;
+    return m.from === "me";
+  }
+
+  /** Who's really on the other end of a thread, from the CURRENT persona's
+   *  point of view. For a self-dealing thread (both ends are you, playing
+   *  investor and tenant in the same browser) a name/profile saved when the
+   *  thread was created is wrong the moment you look at it from the other
+   *  side - "Alex Morgan" doesn't stop being the investor's name just
+   *  because the tenant persona opens the same conversation. So this is
+   *  recomputed live from whichever persona you are NOT currently signed in
+   *  as, every time, rather than trusted from a stored snapshot. A thread
+   *  with a real or seeded counterparty keeps its stored snapshot, since
+   *  that person doesn't change depending on who's looking. */
+  function counterpartyFor(t: MessageThread): { name: string; profile: PartyProfile } {
+    if (t.selfDealing) {
+      const otherRole: PartyRole = role === "investor" ? "Tenant" : "Investor";
+      const otherName = role === "investor" ? namesByRole.tenant : namesByRole.investor;
+      return { name: otherName, profile: selfProfile(t.counterpartyId, otherName, otherRole) };
+    }
+    return {
+      name: t.counterpartyName,
+      profile: t.profile ?? minimalProfile(t.counterpartyId, t.counterpartyName, fallbackCounterpartyRole),
+    };
+  }
+
+  const activeCounterparty = active ? counterpartyFor(active) : null;
+
+  // The property and connection this conversation is actually about, if any
+  // - so the sidebar can say why you're talking, not just who.
+  const relatedPropertyId = active ? propertyIdFromCounterpartyId(active.counterpartyId) : null;
+  const relatedProperty = useMemo(
+    () => (relatedPropertyId ? importedProperties.find((p) => p.id === relatedPropertyId) : undefined),
+    [relatedPropertyId, importedProperties]
+  );
+  const relatedConnection = relatedPropertyId ? connectionFor(relatedPropertyId) : undefined;
+
+  const viewerRole: "investor" | "tenant" = role === "tenant" ? "tenant" : "investor";
+  const agreementInvestor = relatedProperty
+    ? selfProfile(`investor-${relatedProperty.id}`, namesByRole.investor, "Investor")
     : null;
+  const agreementTenant =
+    relatedProperty?.agreement
+      ? relatedProperty.agreement.tenantId === "you"
+        ? selfProfile(`tenant-${relatedProperty.id}`, namesByRole.tenant, "Tenant")
+        : fallbackTenantProfile(relatedProperty.agreement)
+      : null;
 
   function send() {
     if (!active || !body.trim()) return;
@@ -39,6 +116,8 @@ export default function Messages() {
         name: active.counterpartyName,
         context: active.context,
         profile: active.profile,
+        audience: active.audience,
+        selfDealing: active.selfDealing,
       },
       body
     );
@@ -68,6 +147,7 @@ export default function Messages() {
               const last = t.messages[t.messages.length - 1];
               const isActive = active?.counterpartyId === t.counterpartyId;
               const unread = isThreadUnread(t);
+              const counterparty = counterpartyFor(t);
               return (
                 <button
                   key={t.counterpartyId}
@@ -77,13 +157,15 @@ export default function Messages() {
                     isActive ? "bg-brand-blue-light" : "hover:bg-brand-surface"
                   }`}
                 >
-                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-[11px] font-bold text-white">
-                    {t.profile?.initials ?? t.counterpartyName.slice(0, 2).toUpperCase()}
-                  </span>
+                  <Avatar
+                    name={counterparty.name}
+                    initials={counterparty.profile.initials}
+                    photoUrl={counterparty.profile.photoUrl}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-ink">
-                        {t.counterpartyName}
+                        {counterparty.name}
                       </span>
                       {unread && (
                         <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-cta" aria-label="Unread" />
@@ -108,15 +190,17 @@ export default function Messages() {
           </div>
 
           {/* Conversation */}
-          {active && (
+          {active && activeCounterparty && (
             <div className="flex min-h-[380px] flex-col rounded-2xl border border-brand-border bg-white p-4 sm:p-5 lg:h-full lg:min-h-0">
               <div className="flex items-center gap-3 border-b border-brand-border pb-3">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-[11px] font-bold text-white">
-                  {profile?.initials}
-                </span>
+                <Avatar
+                  name={activeCounterparty.name}
+                  initials={activeCounterparty.profile.initials}
+                  photoUrl={activeCounterparty.profile.photoUrl}
+                />
                 <div className="min-w-0">
                   <p className="font-display text-lg font-semibold leading-tight text-brand-ink">
-                    {active.counterpartyName}
+                    {activeCounterparty.name}
                   </p>
                   {active.context && <p className="truncate text-xs text-brand-muted">{active.context}</p>}
                 </div>
@@ -127,7 +211,7 @@ export default function Messages() {
                   <div
                     key={m.id}
                     className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                      m.from === "me"
+                      isMine(m)
                         ? "ml-auto bg-brand-blue text-white"
                         : "bg-brand-surface text-brand-ink"
                     }`}
@@ -157,12 +241,46 @@ export default function Messages() {
             </div>
           )}
 
-          {/* Who you're talking to */}
-          {profile && (
+          {/* Who you're talking to, and why */}
+          {activeCounterparty && (
             <aside className="overflow-y-auto rounded-2xl border border-brand-border bg-white p-5 lg:h-full">
+              {relatedProperty && relatedConnection && (
+                <div className="mb-4 rounded-xl bg-brand-surface p-3">
+                  {relatedConnection.accepted ? (
+                    <p className="text-xs font-semibold text-emerald-700">
+                      ✓ Mutually matched on {relatedProperty.title}
+                    </p>
+                  ) : (
+                    <p className="text-xs font-semibold text-brand-gold-dark">
+                      {relatedConnection.by === "tenant" ? "Interest sent" : "Request sent"} on{" "}
+                      {relatedProperty.title} - not matched yet
+                    </p>
+                  )}
+                  <Link
+                    to="/app/matches"
+                    className="mt-1 inline-block text-[11px] font-semibold text-brand-blue hover:underline"
+                  >
+                    View in Mutual Matches →
+                  </Link>
+
+                  {relatedProperty.agreement && agreementInvestor && agreementTenant && (
+                    <div className="mt-3">
+                      <AgreementTimeline
+                        agreement={relatedProperty.agreement}
+                        investor={agreementInvestor}
+                        tenant={agreementTenant}
+                        viewerRole={viewerRole}
+                        onAdvance={(by: AgreementActor) => advanceAgreement(relatedProperty.id, by)}
+                        compact
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-muted">Profile</p>
               <ProfileSummary
-                profile={profile}
+                profile={activeCounterparty.profile}
                 context={active?.context}
                 propertyHref={
                   <Link

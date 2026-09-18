@@ -9,17 +9,25 @@ import { useAuthGate } from "../context/AuthGateContext";
 export default function TenantProfileModal({
   tenant,
   context,
+  propertyId,
   onClose,
 }: {
   tenant: InterestedTenant;
   context: string;
+  /** So this uses the SAME thread id the rest of the app uses for this
+   *  property (`investor-${propertyId}`), instead of a one-off thread keyed
+   *  on the tenant's own id. Two different ids for the same conversation is
+   *  how it used to fork into two separate threads that told different
+   *  stories about the same deal. */
+  propertyId: string;
   onClose: () => void;
 }) {
   const { sendMessage, threadFor } = useListings();
   const { requireAccount } = useAuthGate();
   const [body, setBody] = useState("");
   const [sent, setSent] = useState(false);
-  const thread = threadFor(tenant.id);
+  const threadId = `investor-${propertyId}`;
+  const thread = threadFor(threadId);
 
   function send() {
     if (!body.trim()) return;
@@ -33,9 +41,18 @@ export default function TenantProfileModal({
 
   function deliver() {
     // Carry the tenant's real details onto the thread so the Messages page
-    // can show their profile beside the conversation.
+    // can show their profile beside the conversation. When the interested
+    // tenant is your own tenant persona, this is a self-dealing thread -
+    // visible from (and correctly named from) either side.
     sendMessage(
-      { id: tenant.id, name: tenant.name, context, profile: profileFromInterestedTenant(tenant) },
+      {
+        id: threadId,
+        name: tenant.name,
+        context,
+        profile: profileFromInterestedTenant(tenant),
+        audience: tenant.isYou ? undefined : "investor",
+        selfDealing: !!tenant.isYou,
+      },
       body
     );
     setBody("");
@@ -78,11 +95,14 @@ export default function TenantProfileModal({
 
         {thread && thread.messages.length > 0 && (
           <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-brand-surface p-3">
-            {thread.messages.map((m) => (
-              <p key={m.id} className="mb-1 text-xs text-brand-ink">
-                <span className="font-semibold">{m.from === "me" ? "You" : tenant.name}:</span> {m.body}
-              </p>
-            ))}
+            {thread.messages.map((m) => {
+              const fromInvestor = m.senderRole ? m.senderRole === "investor" : m.from === "me";
+              return (
+                <p key={m.id} className="mb-1 text-xs text-brand-ink">
+                  <span className="font-semibold">{fromInvestor ? "You" : tenant.name}:</span> {m.body}
+                </p>
+              );
+            })}
           </div>
         )}
 

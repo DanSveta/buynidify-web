@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useRole } from "../app/context/RoleContext";
 import { useAuthGate } from "../app/context/AuthGateContext";
+import { useListings } from "../app/context/ListingsContext";
 import { initialsOf } from "../app/utils/greeting";
 
 // The public chrome: a plain site header and footer, no dashboard.
@@ -14,10 +15,13 @@ export default function PublicShell({
   active,
 }: {
   children: React.ReactNode;
-  active: "search" | "listings";
+  active: "search" | "listings" | "my-properties";
 }) {
   const { role, name } = useRole();
   const { promptSignUp } = useAuthGate();
+  const { importedProperties } = useListings();
+  // Only worth a nav slot once you have something in there.
+  const addedCount = importedProperties.filter((p) => p.owner === "guest").length;
 
   return (
     <div className="min-h-screen bg-brand-page">
@@ -53,6 +57,21 @@ export default function PublicShell({
             >
               Platform listings
             </Link>
+            {addedCount > 0 && !role && (
+              <Link
+                to="/my-properties"
+                className={
+                  active === "my-properties"
+                    ? "flex items-center gap-1.5 text-sm font-semibold text-brand-ink"
+                    : "flex items-center gap-1.5 text-sm text-brand-muted transition-colors hover:text-brand-ink"
+                }
+              >
+                My properties
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-[10px] font-bold text-brand-ink">
+                  {addedCount}
+                </span>
+              </Link>
+            )}
             <Link
               to="/#relocate"
               className="text-sm text-brand-muted transition-colors hover:text-brand-ink"

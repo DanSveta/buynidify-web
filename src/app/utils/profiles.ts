@@ -5,6 +5,8 @@
 // Deliberately no email or phone: contact happens through Buynidify, and the
 // profile says so.
 
+import { avatarFor } from "./avatars";
+
 export type PartyRole = "Tenant" | "Investor" | "Corporate";
 
 export type PartyProfile = {
@@ -20,6 +22,9 @@ export type PartyProfile = {
   /** Role-specific rows shown in the panel body. */
   details: { label: string; value: string }[];
   about: string;
+  /** A real-looking headshot for a named person. Absent for companies -
+   *  those keep the initials mark, which is what a company should show. */
+  photoUrl?: string;
 };
 
 const TENANTS = [
@@ -77,6 +82,7 @@ export function tenantProfileFor(id: string, city: string, budget?: number, minB
     initials: initialsOf(t.name),
     role: "Tenant",
     location: city,
+    photoUrl: avatarFor(t.name),
     ...c,
     verified: { idCheck: true, referencing: h % 4 !== 0, funds: h % 3 !== 0 },
     about: `Looking for a ${minBeds ?? 2}-bedroom home in ${city}. ${t.household}, moving from ${t.from}.`,
@@ -112,6 +118,7 @@ export function profileFromInterestedTenant(t: {
     initials: t.initials,
     role: "Tenant",
     location: t.movingFrom,
+    photoUrl: avatarFor(t.name),
     ...c,
     verified: { idCheck: true, referencing: t.referencing === "Verified", funds: h % 3 !== 0 },
     about: `${t.occupation}. ${t.household}, moving from ${t.movingFrom}.`,
@@ -134,11 +141,33 @@ export function minimalProfile(id: string, name: string, role: PartyRole): Party
     initials: initialsOf(name),
     role,
     location: "",
+    photoUrl: avatarFor(name),
     ...common(h),
     verified: { idCheck: true, referencing: false, funds: false },
     // The property this is about is shown separately, so don't repeat it.
     about: "Connected through Buynidify. Profile details haven't been shared yet.",
     details: [{ label: "Connected via", value: "Buynidify" }],
+  };
+}
+
+/** For the other end of a self-dealing loop: a listing or a request you
+ *  added yourself, approached from your other persona. Named for real -
+ *  whatever that persona is called - rather than a description standing in
+ *  for a name, with `isYou` (passed separately to ProfileHeader) the only
+ *  thing marking it as you. */
+export function selfProfile(id: string, name: string, role: PartyRole): PartyProfile {
+  const h = hash(id);
+  return {
+    id,
+    name,
+    initials: initialsOf(name),
+    role,
+    location: "",
+    photoUrl: avatarFor(name),
+    ...common(h),
+    verified: { idCheck: true, referencing: true, funds: true },
+    about: `Your own ${role.toLowerCase()} account, standing in for the other side of this deal while you try it out.`,
+    details: [{ label: "Account", value: "This is you, demoing the other side" }],
   };
 }
 
@@ -152,6 +181,7 @@ export function investorProfileFor(id: string, city: string, accepts?: string[])
     initials: initialsOf(inv.name),
     role: inv.corporate ? "Corporate" : "Investor",
     location: city,
+    photoUrl: avatarFor(inv.name),
     ...c,
     verified: { idCheck: true, referencing: true, funds: h % 5 !== 0 },
     about: `${inv.corporate ? "Property company" : "Private landlord"} focused on ${inv.focus.toLowerCase()}, active in ${city}.`,

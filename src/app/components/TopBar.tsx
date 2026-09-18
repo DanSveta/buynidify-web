@@ -6,6 +6,7 @@ import { useListings } from "../context/ListingsContext";
 import { usePersistedState } from "../utils/usePersistedState";
 import { initialsOf } from "../utils/greeting";
 import { useAuthGate } from "../context/AuthGateContext";
+import { avatarFor } from "../utils/avatars";
 
 // Dashboard header: quick search, light/dark switch, messages, notifications
 // and the account menu. Everything in here is driven by real app state - the
@@ -305,6 +306,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const unread = notes.filter((n) => !readIds.includes(n.id));
 
   const initials = name ? initialsOf(name) : role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
+  const photoUrl = name ? avatarFor(name) : undefined;
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-brand-border bg-brand-panel px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
@@ -350,9 +352,9 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
           type="button"
           onClick={() => setOpenPanel((p) => (p === "avatar" ? null : "avatar"))}
           aria-label="Account"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-xs font-bold text-white ring-2 ring-brand-panel transition-transform hover:scale-105"
+          className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-blue text-xs font-bold text-white ring-2 ring-brand-panel transition-transform hover:scale-105"
         >
-          {initials}
+          {photoUrl ? <img src={photoUrl} alt="" className="h-full w-full object-cover" /> : initials}
         </button>
           </>
         ) : (

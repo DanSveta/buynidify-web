@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useRole } from "../context/RoleContext";
 import { useProfile, planLabel, type UserProfile } from "../context/ProfileContext";
 import { initialsOf } from "../utils/greeting";
+import Avatar from "../components/Avatar";
+import { avatarFor } from "../utils/avatars";
 import PlanModal from "../components/PlanModal";
 import {
   investorVerificationChecks,
@@ -214,9 +216,12 @@ export default function Profile() {
       <section className="rounded-2xl border border-brand-border bg-white p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-lg font-bold text-white">
-              {initialsOf(fullName || "?")}
-            </span>
+            <Avatar
+              name={fullName}
+              initials={initialsOf(fullName || "?")}
+              photoUrl={avatarFor(fullName)}
+              size="lg"
+            />
             <div>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-brand-ink">
                 {fullName}

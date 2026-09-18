@@ -4,13 +4,23 @@ import { useRole } from "./context/RoleContext";
 import { useTheme } from "./context/ThemeContext";
 import { useListings } from "./context/ListingsContext";
 import { useProfile } from "./context/ProfileContext";
+import { useFavorites } from "./context/FavoritesContext";
+import { resolveSavedProperties } from "./utils/savedProperties";
 import PlanModal from "./components/PlanModal";
 import { useAuthGate } from "./context/AuthGateContext";
-import { deals } from "./data/mockData";
 import ThemeDock from "../components/ThemeDock";
 import TopBar from "./components/TopBar";
 
-type NavItem = { to: string; label: string; badge?: number; highlight?: boolean };
+type NavItem = {
+  to: string;
+  label: string;
+  badge?: number;
+  /** A quiet heart mark instead of a coloured count - saving something isn't
+   *  a notification, it doesn't need to compete for attention the way an
+   *  unread message or a match does. */
+  heart?: boolean;
+  highlight?: boolean;
+};
 
 const roleLabel: Record<string, string> = {
   investor: "Investor",
@@ -97,9 +107,12 @@ function UpgradeCard({ onOpen }: { onOpen: () => void }) {
 }
 
 export default function AppLayout() {
-  const { role, logout } = useRole();
+  const { role, login, logout } = useRole();
   const { dark } = useTheme();
-  const { unreadThreadCount } = useListings();
+  const { unreadThreadCount, matches, connections, importedProperties, investorListings, tenantDemand } =
+    useListings();
+  const { favoriteIds } = useFavorites();
+  const { total: savedCount } = resolveSavedProperties(favoriteIds, investorListings, tenantDemand);
   const [planOpen, setPlanOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const { promptSignUp } = useAuthGate();
@@ -112,13 +125,56 @@ export default function AppLayout() {
     setNavOpen(false);
   }, [location.pathname]);
 
+  // Private demo shortcut: swap between the two customer personas without
+  // signing out or moving away from the page currently being reviewed.
+  useEffect(() => {
+    function switchPersona(event: KeyboardEvent) {
+      if (
+        event.repeat ||
+        event.altKey ||
+        !(event.metaKey || event.ctrlKey) ||
+        !event.shiftKey ||
+        event.key.toLowerCase() !== "x" ||
+        (role !== "investor" && role !== "tenant")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      login(role === "investor" ? "tenant" : "investor");
+    }
+
+    window.addEventListener("keydown", switchPersona);
+    return () => window.removeEventListener("keydown", switchPersona);
+  }, [login, role]);
+
   // The dashboard belongs to an account. Someone just looking around gets the
   // public search page instead, which is where browsing lives.
   if (!role) {
     return <Navigate to="/search" replace />;
   }
 
-  const matchedCount = deals.filter((d) => d.stage === "matched").length;
+  // The badge is for things that are actually yours to look at: mutual
+  // matches, plus anyone waiting on you to answer about your own property.
+  // It used to count a static seeded list, which never changed whatever you
+  // did in the app.
+  const waitingOnYou = connections.filter(
+    (c) =>
+      !c.accepted &&
+      (role === "investor" ? c.by === "tenant" : c.by === "investor") &&
+      importedProperties.some((p) => p.id === c.id)
+  ).length;
+  const matchedCount = matches.length + waitingOnYou;
+
+  // How many deals are still moving - the Deal Tracker had no nav entry at
+  // all, so a deal that reached "agreement signed" or further had nowhere
+  // obvious to be found again once you left Mutual Matches.
+  const dealsInProgress = importedProperties.filter(
+    (p) =>
+      p.agreement &&
+      p.agreement.stage !== "tenancy-active" &&
+      (role === "investor" ? p.owner === "investor" : p.agreement.tenantId === "you")
+  ).length;
 
   const primaryNavItems: NavItem[] =
     role === "investor"
@@ -127,8 +183,9 @@ export default function AppLayout() {
           { to: "/app/search", label: "Search Properties" },
           { to: "/app/my-properties", label: "My Properties" },
           { to: "/app/platform-listings", label: "Platform listings" },
-          { to: "/app/shortlist", label: "Shortlist" },
+          { to: "/app/shortlist", label: "Shortlist", heart: savedCount > 0 },
           { to: "/app/matches", label: "Mutual Matches", badge: matchedCount },
+          { to: "/app/deals", label: "Deal Tracker", badge: dealsInProgress },
           { to: "/app/messages", label: "Messages", badge: unreadThreadCount },
         ]
       : role === "tenant"
@@ -137,8 +194,9 @@ export default function AppLayout() {
             { to: "/app/search", label: "Find a Home" },
             { to: "/app/my-properties", label: "My Properties" },
             { to: "/app/platform-listings", label: "Platform listings" },
-            { to: "/app/shortlist", label: "Saved Homes" },
+            { to: "/app/shortlist", label: "Saved Homes", heart: savedCount > 0 },
             { to: "/app/matches", label: "Matched!", badge: matchedCount },
+            { to: "/app/deals", label: "Deal Tracker", badge: dealsInProgress },
             { to: "/app/messages", label: "Messages", badge: unreadThreadCount },
           ]
         : [{ to: "/app/b2b", label: "Company Dashboard" }];
@@ -194,6 +252,15 @@ export default function AppLayout() {
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-[10px] font-bold text-brand-ink">
                   {item.badge}
                 </span>
+              )}
+              {item.heart && (
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                  className="h-3.5 w-3.5 flex-shrink-0 fill-current opacity-50"
+                >
+                  <path d="M12 20.5s-7.5-4.6-7.5-9.8A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 3.3c0 5.2-7.5 9.8-7.5 9.8Z" />
+                </svg>
               )}
             </NavLink>
           ))}

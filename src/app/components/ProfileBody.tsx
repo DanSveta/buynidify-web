@@ -40,11 +40,15 @@ export function ProfileHeader({
   return (
     <div className="flex items-center gap-3">
       <span
-        className={`flex flex-shrink-0 items-center justify-center rounded-full bg-brand-blue font-bold text-white ${
+        className={`flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-blue font-bold text-white ${
           size === "lg" ? "h-14 w-14 text-base" : "h-12 w-12 text-sm"
         }`}
       >
-        {profile.initials}
+        {profile.photoUrl ? (
+          <img src={profile.photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          profile.initials
+        )}
       </span>
       <div className="min-w-0">
         <h2 className="font-display text-lg font-semibold text-brand-ink">{profile.name}</h2>

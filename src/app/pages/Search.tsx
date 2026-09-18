@@ -529,11 +529,12 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
       {/* Found something on a real portal? Paste the link here. This is the
           one place a property enters the platform; everything you do with it
           afterwards happens on My Properties. */}
-      {/* On the public page this is the only place a link lives, so it shows
-          the full cards: analysis, details, publish. In the portal it's just
-          the input, because My Properties owns the detail. */}
-      <PropertyLinkImporter inputOnly={chrome === "portal"} />
-      {chrome === "portal" && <AddedPropertiesSummary />}
+      {/* Signed in or not, this behaves identically: the box adds the link,
+          a short receipt appears underneath, and the full detail lives on My
+          Properties. Signed out that page is /my-properties instead of
+          /app/my-properties, which is the only difference. */}
+      <PropertyLinkImporter inputOnly />
+      <AddedPropertiesSummary />
 
       {/* The other side of the platform, filtered by the same criteria you
           just searched with. An investor sees what tenants are asking for; a
