@@ -8,7 +8,7 @@ export default function Marketplace() {
   const { role } = useRole();
   const {
     investorListings,
-    addInvestorListing,
+    addImportedProperty,
     expressInterestInListing,
     hasExpressedInterest,
     interestedTenantsFor,
@@ -29,14 +29,19 @@ export default function Marketplace() {
     }
     setError("");
     const mock = buildMockPropertyFromUrl(parsed.toString());
-    addInvestorListing({
+    addImportedProperty({
       id: `il-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      owner: "investor",
       url: parsed.toString(),
-      address: mock.address,
-      city: mock.city,
+      portal: mock.portal,
+      title: mock.address,
+      location: mock.city,
       price: mock.price,
       beds: mock.beds,
       type: mock.type,
+      analysis: null,
+      showAnalysis: false,
+      published: null,
     });
     setLink("");
   }

@@ -93,6 +93,55 @@ export function tenantProfileFor(id: string, city: string, budget?: number, minB
   };
 }
 
+/** Built from a real interested-tenant record rather than generated, so the
+ *  profile beside a conversation shows what that person actually told us. */
+export function profileFromInterestedTenant(t: {
+  id: string;
+  name: string;
+  initials: string;
+  occupation: string;
+  household: string;
+  movingFrom: string;
+  referencing: "Verified" | "In progress";
+}): PartyProfile {
+  const h = hash(t.id);
+  const c = common(h);
+  return {
+    id: `tenant-${t.id}`,
+    name: t.name,
+    initials: t.initials,
+    role: "Tenant",
+    location: t.movingFrom,
+    ...c,
+    verified: { idCheck: true, referencing: t.referencing === "Verified", funds: h % 3 !== 0 },
+    about: `${t.occupation}. ${t.household}, moving from ${t.movingFrom}.`,
+    details: [
+      { label: "Occupation", value: t.occupation },
+      { label: "Household", value: t.household },
+      { label: "Moving from", value: t.movingFrom },
+      { label: "Referencing", value: t.referencing },
+    ],
+  };
+}
+
+/** For conversations started before profiles were attached to threads. Shows
+ *  only what the thread actually knows instead of inventing a history. */
+export function minimalProfile(id: string, name: string, role: PartyRole): PartyProfile {
+  const h = hash(id);
+  return {
+    id,
+    name,
+    initials: initialsOf(name),
+    role,
+    location: "",
+    ...common(h),
+    verified: { idCheck: true, referencing: false, funds: false },
+    // The property this is about is shown separately, so don't repeat it.
+    about: "Connected through Buynidify. Profile details haven't been shared yet.",
+    details: [{ label: "Connected via", value: "Buynidify" }],
+  };
+}
+
 export function investorProfileFor(id: string, city: string, accepts?: string[]): PartyProfile {
   const h = hash(id);
   const inv = INVESTORS[h % INVESTORS.length];

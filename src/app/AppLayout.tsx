@@ -1,11 +1,16 @@
-import { NavLink, Outlet, Link, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useRole } from "./context/RoleContext";
 import { useTheme } from "./context/ThemeContext";
+import { useListings } from "./context/ListingsContext";
+import { useProfile } from "./context/ProfileContext";
+import PlanModal from "./components/PlanModal";
+import { useAuthGate } from "./context/AuthGateContext";
 import { deals } from "./data/mockData";
 import ThemeDock from "../components/ThemeDock";
 import TopBar from "./components/TopBar";
 
-type NavItem = { to: string; label: string; badge?: number };
+type NavItem = { to: string; label: string; badge?: number; highlight?: boolean };
 
 const roleLabel: Record<string, string> = {
   investor: "Investor",
@@ -13,27 +18,59 @@ const roleLabel: Record<string, string> = {
   corporate: "Corporate",
 };
 
-// The sidebar is a solid brand-primary panel, so nav items are light-on-color.
-// Active state flips to a white pill with primary-coloured text - that pairing
-// clears 4.5:1 on every palette, and it reads as "you are here" much faster
-// than a slightly-lighter tint would.
-function linkClasses(isActive: boolean) {
-  return `flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+// The sidebar is plain, so the brand colour lands on exactly one thing: the
+// item you're on. A filled primary pill against neutral text is the strongest
+// "you are here" signal available, and it clears 4.5:1 on every palette.
+// Relocate is the flagship feature, so it gets the same gold chip treatment
+// it has on the marketing site rather than sitting flat among the section
+// links. Bright when idle, solid when you're on it.
+function highlightClasses(isActive: boolean) {
+  return `flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
     isActive
-      ? "bg-white text-brand-blue font-semibold shadow-sm"
-      : "text-white/75 hover:bg-white/10 hover:text-white"
+      ? "bg-brand-gold text-brand-ink shadow-md ring-2 ring-brand-gold/35"
+      : "bg-brand-gold/90 text-brand-ink hover:bg-brand-gold"
   }`;
 }
 
-// Settings, Help & Support and the upgrade prompt sit at the foot of the
-// sidebar, away from the working navigation - the pattern every dashboard
-// uses, because they're destinations you go to occasionally rather than
-// things you switch between.
-function UpgradeCard() {
+function linkClasses(isActive: boolean) {
+  return `flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+    isActive
+      ? "bg-brand-blue text-white font-semibold shadow-sm"
+      : "text-brand-muted hover:bg-brand-surface hover:text-brand-ink"
+  }`;
+}
+
+// Settings, Help & Support and the plan card sit at the foot of the sidebar,
+// away from the working navigation - the pattern every dashboard uses, because
+// they're destinations you go to occasionally rather than things you switch
+// between.
+//
+// The card reads the current plan, so it sells the next step up rather than
+// pushing something you already pay for, and it opens the plan chooser in
+// place instead of navigating away.
+function UpgradeCard({ onOpen }: { onOpen: () => void }) {
+  const { profile } = useProfile();
+
+  const copy =
+    profile.plan === "vip"
+      ? { title: "VIP member", body: "You're on the top plan. Manage it any time.", cta: "Manage plan" }
+      : profile.plan === "premium"
+        ? {
+            title: "Premium member",
+            body: "Step up to VIP for a dedicated account manager.",
+            cta: "Upgrade to VIP",
+          }
+        : {
+            title: "Upgrade your plan",
+            body: "Priority analysis and early access to tenant demand.",
+            cta: "See plans",
+          };
+
   return (
-    <Link
-      to="/app/premium"
-      className="block rounded-xl bg-gradient-to-br from-brand-ink to-brand-blue-dark p-4 ring-1 ring-white/15 transition-shadow hover:shadow-lg"
+    <button
+      type="button"
+      onClick={onOpen}
+      className="block w-full rounded-xl bg-gradient-to-br from-brand-ink to-brand-blue-dark p-4 text-left ring-1 ring-white/15 transition-shadow hover:shadow-lg"
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
         <svg
@@ -50,24 +87,35 @@ function UpgradeCard() {
           <path d="M12 14v3M9 20h6" />
         </svg>
       </span>
-      <p className="mt-3 text-sm font-semibold text-white">Upgrade to Premium</p>
-      <p className="mt-0.5 text-[11px] leading-snug text-white/70">
-        Unlock priority matching and the full set of benefits.
-      </p>
+      <p className="mt-3 text-sm font-semibold text-white">{copy.title}</p>
+      <p className="mt-0.5 text-[11px] leading-snug text-white/70">{copy.body}</p>
       <span className="mt-3 block rounded-lg bg-brand-cta px-3 py-2 text-center text-xs font-semibold text-brand-cta-text">
-        Upgrade premium
+        {copy.cta}
       </span>
-    </Link>
+    </button>
   );
 }
 
 export default function AppLayout() {
   const { role, logout } = useRole();
   const { dark } = useTheme();
+  const { unreadThreadCount } = useListings();
+  const [planOpen, setPlanOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const { promptSignUp } = useAuthGate();
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // On a phone the sidebar is a drawer over the page, so navigating has to
+  // close it, otherwise you tap a link and stare at the menu you just used.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  // The dashboard belongs to an account. Someone just looking around gets the
+  // public search page instead, which is where browsing lives.
   if (!role) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/search" replace />;
   }
 
   const matchedCount = deals.filter((d) => d.stage === "matched").length;
@@ -76,34 +124,29 @@ export default function AppLayout() {
     role === "investor"
       ? [
           { to: "/app/overview", label: "Overview" },
-          { to: "/app/my-properties", label: "My Properties" },
           { to: "/app/search", label: "Search Properties" },
+          { to: "/app/my-properties", label: "My Properties" },
+          { to: "/app/platform-listings", label: "Platform listings" },
           { to: "/app/shortlist", label: "Shortlist" },
           { to: "/app/matches", label: "Mutual Matches", badge: matchedCount },
-          { to: "/app/local-services", label: "Local Services" },
-          { to: "/app/messages", label: "Messages" },
+          { to: "/app/messages", label: "Messages", badge: unreadThreadCount },
         ]
       : role === "tenant"
         ? [
             { to: "/app/overview", label: "Overview" },
-            { to: "/app/my-properties", label: "My Properties" },
             { to: "/app/search", label: "Find a Home" },
+            { to: "/app/my-properties", label: "My Properties" },
+            { to: "/app/platform-listings", label: "Platform listings" },
             { to: "/app/shortlist", label: "Saved Homes" },
             { to: "/app/matches", label: "Matched!", badge: matchedCount },
-            { to: "/app/local-services", label: "Local Services" },
-            { to: "/app/messages", label: "Messages" },
+            { to: "/app/messages", label: "Messages", badge: unreadThreadCount },
           ]
         : [{ to: "/app/b2b", label: "Company Dashboard" }];
 
   const secondaryNavItems: NavItem[] =
     role === "corporate"
       ? [{ to: "/app/platform-listings", label: "Platform listings" }]
-      : [
-          { to: "/app/verification", label: "Verification" },
-          { to: "/app/platform-listings", label: "Platform listings" },
-          { to: "/app/pricing", label: "Pricing" },
-          { to: "/app/relocate", label: "Relocate AI" },
-        ];
+      : [{ to: "/app/relocate", label: "Relocate AI", highlight: true }];
 
   return (
     // data-theme is set here rather than on <html> so dark mode covers the
@@ -112,16 +155,29 @@ export default function AppLayout() {
       data-theme={dark ? "dark" : undefined}
       className="flex min-h-screen bg-brand-page"
     >
-      <aside className="sidebar-panel sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col overflow-y-auto bg-brand-blue px-4 py-6">
+      {/* Backdrop for the mobile drawer. */}
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-shrink-0 flex-col overflow-y-auto border-r border-brand-border bg-brand-panel px-4 py-6 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:translate-x-0 ${
+          navOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <Link
           to="/"
-          className="mb-1 flex items-center gap-2 px-2 font-wordmark text-[1.7rem] font-medium leading-none tracking-[0.015em] text-white"
+          className="mb-1 flex items-center gap-2 px-2 font-wordmark text-[1.7rem] font-medium leading-none tracking-[0.015em] text-brand-blue"
         >
           Buynidify
           <span className="h-1.5 w-1.5 rounded-full bg-brand-gold" />
         </Link>
-        <p className="mb-6 px-2 text-xs uppercase tracking-wide text-white/55">
-          {roleLabel[role]} Portal
+        <p className="mb-6 px-2 text-xs uppercase tracking-wide text-brand-muted">
+          {role ? `${roleLabel[role]} Portal` : "Browsing"}
         </p>
 
         <nav className="flex flex-col gap-1">
@@ -129,7 +185,9 @@ export default function AppLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => linkClasses(isActive)}
+              className={({ isActive }) =>
+                item.highlight ? highlightClasses(isActive) : linkClasses(isActive)
+              }
             >
               <span>{item.label}</span>
               {!!item.badge && (
@@ -141,44 +199,81 @@ export default function AppLayout() {
           ))}
         </nav>
 
-        <div className="my-4 border-t border-white/15" />
+        <div className="my-4 border-t border-brand-border" />
 
         <nav className="flex flex-col gap-1">
           {secondaryNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => linkClasses(isActive)}
+              className={({ isActive }) =>
+                item.highlight ? highlightClasses(isActive) : linkClasses(isActive)
+              }
             >
-              <span>{item.label}</span>
+              <span className="flex items-center gap-1.5">
+                {item.highlight && (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3.5 w-3.5"
+                  >
+                    <path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" />
+                  </svg>
+                )}
+                {item.label}
+              </span>
             </NavLink>
           ))}
-          <button
-            onClick={() => {
-              logout();
-              navigate("/login");
-            }}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            Sign Out
-          </button>
+          {role && (
+            <button
+              onClick={() => {
+                logout();
+                navigate("/app/search");
+              }}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-brand-muted transition-colors hover:bg-brand-surface hover:text-brand-ink"
+            >
+              Sign Out
+            </button>
+          )}
         </nav>
 
         <div className="mt-auto flex flex-col gap-3 pt-8">
           <nav className="flex flex-col gap-1">
-            <NavLink to="/app/profile" className={({ isActive }) => linkClasses(isActive)}>
-              <span>Settings</span>
-            </NavLink>
+            {role && (
+              <NavLink to="/app/profile" className={({ isActive }) => linkClasses(isActive)}>
+                <span>Settings</span>
+              </NavLink>
+            )}
             <NavLink to="/app/support" className={({ isActive }) => linkClasses(isActive)}>
               <span>Help &amp; Support</span>
             </NavLink>
           </nav>
 
-          <UpgradeCard />
+          {role ? (
+            <UpgradeCard onOpen={() => setPlanOpen(true)} />
+          ) : (
+            <button
+              type="button"
+              onClick={promptSignUp}
+              className="block w-full rounded-xl bg-gradient-to-br from-brand-ink to-brand-blue-dark p-4 text-left ring-1 ring-white/15 transition-shadow hover:shadow-lg"
+            >
+              <p className="text-sm font-semibold text-white">Join Buynidify</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-white/70">
+                Free to browse. An account is only needed to publish or register interest.
+              </p>
+              <span className="mt-3 block rounded-lg bg-brand-cta px-3 py-2 text-center text-xs font-semibold text-brand-cta-text">
+                Create account
+              </span>
+            </button>
+          )}
 
           <Link
             to="/"
-            className="px-2 text-xs text-white/60 transition-colors hover:text-white"
+            className="px-2 text-xs text-brand-muted transition-colors hover:text-brand-ink"
           >
             ← Back to marketing site
           </Link>
@@ -186,13 +281,17 @@ export default function AppLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <main className="min-w-0 flex-1 px-8 pb-12 pt-7">
-          <div className="mx-auto max-w-5xl">
+        <TopBar onMenu={() => setNavOpen(true)} />
+        {/* Wide enough to use a laptop screen properly, capped so text lines
+            don't run away on an ultrawide monitor. */}
+        <main className="min-w-0 flex-1 px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-7">
+          <div className="mx-auto w-full max-w-[1400px]">
             <Outlet />
           </div>
         </main>
       </div>
+
+      {planOpen && <PlanModal onClose={() => setPlanOpen(false)} />}
 
       <ThemeDock />
     </div>

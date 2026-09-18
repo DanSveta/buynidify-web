@@ -4,7 +4,7 @@
 const steps = [
   "Verify the tenant's details and rental criteria",
   "Share your property details with the tenant",
-  "Coordinate a viewing or call between both parties",
+  "Arrange a call between both parties",
   "Support the pre-agreement process if there's a match",
 ];
 

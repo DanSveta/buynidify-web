@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useRole } from "../context/RoleContext";
 import {
   useListings,
-  type BuyerAnalysis,
-  type ImportedProperty,
-  type InvestorAnalysis,
   type PublishDetails,
 } from "../context/ListingsContext";
-import { buildMockPropertyFromUrl, type Portal } from "../utils/mockFromUrl";
+import { fetchPropertyFromUrl, type Portal } from "../utils/mockFromUrl";
+import { buildBuyerAnalysis, buildInvestorAnalysis } from "../utils/analysis";
+import PublishModal from "./PublishModal";
+import { useAuthGate } from "../context/AuthGateContext";
 
 // Paste-a-link + AI analysis, matching the flow on the live buynidify.eu
 // demo. Two variants, because the two roles ask different questions of the
@@ -25,106 +25,6 @@ import { buildMockPropertyFromUrl, type Portal } from "../utils/mockFromUrl";
 // and survive a reload or a role switch.
 
 const MAX_IMPORTS = 5;
-
-// Simplified England SDLT bands (standard residential rate) - a demo
-// estimate only, flagged as such in the disclaimer below.
-function estimateStampDuty(price: number): number {
-  const bands: [number, number][] = [
-    [250000, 0],
-    [925000, 0.05],
-    [1500000, 0.1],
-    [Infinity, 0.12],
-  ];
-  let duty = 0;
-  let lower = 0;
-  for (const [upper, rate] of bands) {
-    if (price > lower) {
-      duty += (Math.min(price, upper) - lower) * rate;
-      lower = upper;
-    }
-  }
-  return Math.round(duty / 100) * 100;
-}
-
-function seedFrom(url: string) {
-  return Math.abs(url.split("").reduce((h, c) => (h << 5) - h + c.charCodeAt(0), 0));
-}
-
-function buildInvestorAnalysis(p: ImportedProperty): InvestorAnalysis {
-  const seed = seedFrom(p.url);
-  // Gross yield 4.5-7.4%, then the monthly rent is derived from it so the
-  // two figures always agree with each other.
-  const grossYield = Math.round((4.5 + (seed % 30) / 10) * 10) / 10;
-  const monthlyRent = Math.round((p.price * (grossYield / 100)) / 12 / 5) * 5;
-  const netYield = Math.round((grossYield - 1.5) * 10) / 10;
-  const locationScore = Math.round((6.5 + ((seed >> 3) % 30) / 10) * 10) / 10;
-  const demandOptions: InvestorAnalysis["rentalDemand"][] = ["Moderate", "High", "Very high"];
-  const rentalDemand = demandOptions[seed % demandOptions.length];
-  const timeToLetOptions = ["1-2 weeks", "2-4 weeks", "3-6 weeks"];
-  const profileOptions = ["Young professionals", "Professional sharers", "Families", "Students and graduates"];
-
-  return {
-    kind: "investor",
-    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} presents a solid buy-to-let opportunity with estimated gross yields around ${grossYield.toFixed(1)}%.`,
-    monthlyRent,
-    grossYield,
-    netYield,
-    locationScore,
-    rentalDemand,
-    timeToLet: timeToLetOptions[(seed >> 2) % timeToLetOptions.length],
-    tenantProfile: profileOptions[(seed >> 4) % profileOptions.length],
-    positives: [
-      `Strong rental demand in ${p.location}`,
-      `${p.beds} bedroom${p.beds > 1 ? "s" : ""} attract stable long-term tenants`,
-      "Good transport connections likely",
-      "Competitive asking price for the area",
-    ],
-    consider: [
-      "Full due diligence needed on service charges",
-      "Stamp duty surcharge applies (3% for investment)",
-      "Verify EPC rating before purchase",
-      `Budget around ${gbp.format(estimateStampDuty(p.price) + Math.round(p.price * 0.03))} in stamp duty`,
-    ],
-    suggestions: [
-      `Target net yield of ${netYield.toFixed(1)}-${(netYield + 1).toFixed(1)}% for ${p.location}`,
-      `Market rent likely ${gbp.format(Math.round(monthlyRent * 0.95))}-${gbp.format(Math.round(monthlyRent * 1.05))}/month`,
-      "Consider instructing a local letting agent for tenant referencing",
-    ],
-  };
-}
-
-function buildBuyerAnalysis(p: ImportedProperty): BuyerAnalysis {
-  const seed = seedFrom(p.url);
-  const valueOptions: BuyerAnalysis["valueForMoney"][] = ["Fair", "Good", "Excellent"];
-
-  return {
-    kind: "buyer",
-    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} could suit your budget and search criteria.`,
-    deposit: Math.round(p.price * 0.1),
-    upfrontCosts: estimateStampDuty(p.price) + 2500,
-    commuteScore: Math.round((6 + (seed % 35) / 10) * 10) / 10,
-    amenitiesScore: Math.round((6 + ((seed >> 3) % 35) / 10) * 10) / 10,
-    valueForMoney: valueOptions[seed % valueOptions.length],
-    positives: [
-      `${p.beds} bedroom${p.beds > 1 ? "s" : ""} offer good space for your household`,
-      `${p.location} has strong transport links`,
-      "Property type suits long-term ownership",
-      "Area has good local amenities",
-    ],
-    consider: [
-      "Confirm whether it's freehold or leasehold",
-      "Check the EPC rating and any planned energy works",
-      "Ask about service charge and ground rent (if leasehold)",
-      "Verify the local council tax band",
-    ],
-    suggestions: [
-      "Book a full structural survey before offering",
-      "Request the property's EPC certificate",
-      "Ask about chain length and the seller's timeline",
-      "Get a mortgage Agreement in Principle before you offer",
-    ],
-  };
-}
 
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
@@ -145,13 +45,18 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function PropertyLinkImporter() {
+export default function PropertyLinkImporter({
+  inputOnly = false,
+  listOnly = false,
+}: {
+  /** Just the paste box (Search). */
+  inputOnly?: boolean;
+  /** Just the cards for links already added (My Properties). */
+  listOnly?: boolean;
+}) {
   const { role } = useRole();
   const isInvestor = role === "investor";
   const {
-    addTenantDemand,
-    addInvestorListing,
-    updateInvestorListing,
     hasInvestorResponded,
     importedProperties,
     addImportedProperty,
@@ -161,16 +66,18 @@ export default function PropertyLinkImporter() {
 
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const [fetching, setFetching] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const { requireAccount } = useAuthGate();
 
   // Each role only manages the links it pasted itself.
   const imports = importedProperties.filter((p) =>
-    isInvestor ? p.owner === "investor" : p.owner === "tenant"
+    role ? (isInvestor ? p.owner === "investor" : p.owner === "tenant") : p.owner === "guest"
   );
   const publishing = imports.find((p) => p.id === publishingId) ?? null;
 
-  function handleImport() {
+  async function handleImport() {
     const trimmed = url.trim();
     if (!trimmed) return;
     if (imports.length >= MAX_IMPORTS) {
@@ -185,12 +92,17 @@ export default function PropertyLinkImporter() {
       return;
     }
     setError("");
+    setFetching(true);
     const id = `prop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const mock = buildMockPropertyFromUrl(parsed.toString());
+    // Reads the real listing. Falls back to a generated preview if the portal
+    // blocks the request, and says so on the card either way.
+    const mock = await fetchPropertyFromUrl(parsed.toString());
+    setFetching(false);
 
     addImportedProperty({
       id,
-      owner: isInvestor ? "investor" : "tenant",
+      // A guest can analyse anything; it becomes theirs when they join.
+      owner: role ? (isInvestor ? "investor" : "tenant") : "guest",
       url: parsed.toString(),
       portal: mock.portal,
       title: `${mock.beds} Bedroom ${mock.type}`,
@@ -201,35 +113,13 @@ export default function PropertyLinkImporter() {
       analysis: null,
       showAnalysis: false,
       published: null,
+      sourced: mock.real,
+      sourceNote: mock.note,
+      baths: mock.baths,
+      postcode: mock.postcode,
+      agent: mock.agent,
+      imageUrl: mock.imageUrl,
     });
-
-    // A tenant's link is a demand signal investors can respond to. An
-    // investor's link isn't public until they actively publish it, so
-    // nothing is registered here for them.
-    if (isInvestor) {
-      // Visible on Platform listings straight away - publishing then fills in
-      // the rent and terms rather than being what puts it there.
-      addInvestorListing({
-        id,
-        url: parsed.toString(),
-        address: `${mock.beds} Bedroom ${mock.type}`,
-        city: mock.city,
-        price: mock.price,
-        beds: mock.beds,
-        type: mock.type,
-        portal: mock.portal,
-      });
-    } else {
-      addTenantDemand({
-        id,
-        url: parsed.toString(),
-        city: mock.city,
-        propertyType: mock.type,
-        targetPrice: mock.price,
-        minBeds: mock.beds,
-        notes: `Found via a pasted ${mock.portal} link.`,
-      });
-    }
 
     setUrl("");
   }
@@ -240,7 +130,9 @@ export default function PropertyLinkImporter() {
     setAnalyzingId(id);
     setTimeout(() => {
       updateImportedProperty(id, {
-        analysis: isInvestor ? buildInvestorAnalysis(property) : buildBuyerAnalysis(property),
+        // Signed out we don't know which side you're on yet, so you get the
+        // investment analysis - the one the platform is built around.
+        analysis: isInvestor || !role ? buildInvestorAnalysis(property) : buildBuyerAnalysis(property),
         showAnalysis: true,
       });
       setAnalyzingId(null);
@@ -259,21 +151,16 @@ export default function PropertyLinkImporter() {
 
   function publish(details: PublishDetails) {
     if (!publishing) return;
-    // Only add to the marketplace the first time - republishing just
-    // updates the terms on the card.
-    updateInvestorListing(publishing.id, {
-      monthlyRent: details.rent,
-      minTenancy: details.minTenancy,
-      availableFrom: details.availableFrom,
-      notes: details.notes,
-      accepts: details.accepts,
-    });
+    // Publishing sets the terms on the one record; Platform listings reads
+    // them straight from it.
     updateImportedProperty(publishing.id, { published: details });
     setPublishingId(null);
   }
 
   return (
     <div className="mt-6 rounded-2xl border border-brand-border bg-brand-surface p-5">
+      {!listOnly && (
+        <>
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-white">
           ✨
@@ -302,29 +189,47 @@ export default function PropertyLinkImporter() {
         <button
           type="button"
           onClick={handleImport}
-          className="flex-shrink-0 rounded-lg bg-brand-blue px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+          disabled={fetching}
+          className="flex-shrink-0 rounded-lg bg-brand-blue px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-60"
         >
-          Add property
+          {fetching ? "Reading listing..." : "Add property"}
         </button>
       </div>
       {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
       <p className="mt-2 text-[11px] text-brand-muted">
-        {MAX_IMPORTS - imports.length} of {MAX_IMPORTS} link slots remaining · Demo platform: previews are generated from
-        the link, no real portal data is fetched, and AI analysis is an estimate only, not financial or legal advice.
+        {MAX_IMPORTS - imports.length} of {MAX_IMPORTS} link slots remaining · Details are read from the listing
+        itself. The AI analysis is an estimate only, not financial or legal advice.
       </p>
+        </>
+      )}
 
-      {imports.length > 0 && (
+      {!inputOnly && imports.length > 0 && (
         <div className="mt-5 flex flex-col gap-4">
           {imports.map((p) => (
             <div key={p.id} className="rounded-xl border border-brand-border bg-white p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                {p.imageUrl && (
+                  <img
+                    src={p.imageUrl}
+                    alt={p.title}
+                    loading="lazy"
+                    className="h-20 w-28 flex-shrink-0 rounded-lg object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${portalBadgeClass[p.portal]}`}>
                       {p.portal}
                     </span>
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                      ✓ Verified
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        p.sourced
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-brand-gold/20 text-brand-gold-dark"
+                      }`}
+                      title={p.sourceNote}
+                    >
+                      {p.sourced ? "✓ Read from listing" : "Estimated preview"}
                     </span>
                     {p.published && (
                       <span className="rounded-full bg-brand-blue-light px-2 py-0.5 text-[11px] font-semibold text-brand-blue">
@@ -338,7 +243,13 @@ export default function PropertyLinkImporter() {
                     )}
                   </div>
                   <p className="mt-1 font-display text-base font-semibold text-brand-ink">{p.title}</p>
-                  <p className="text-sm text-brand-muted">{p.location}</p>
+                  <p className="text-sm text-brand-muted">
+                    {p.location}
+                    {p.postcode ? ` · ${p.postcode}` : ""}
+                  </p>
+                  {p.agent && (
+                    <p className="text-[11px] text-brand-muted">Marketed by {p.agent}</p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -452,11 +363,18 @@ export default function PropertyLinkImporter() {
 
               {/* Investor actions - publishing is what makes the property
                   visible to tenants in the marketplace. */}
-              {isInvestor && (
+              {(isInvestor || !role) && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-brand-border pt-3">
                   <button
                     type="button"
-                    onClick={() => setPublishingId(p.id)}
+                    onClick={() =>
+                      requireAccount({
+                        title: "Publish to tenants",
+                        message:
+                          "Publishing puts your proposal in front of real tenants, so it needs a verified account.",
+                        action: () => setPublishingId(p.id),
+                      })
+                    }
                     className="rounded-lg bg-brand-blue px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-blue-dark"
                   >
                     {p.published ? "Update listing" : "Publish to tenants"}
@@ -511,171 +429,4 @@ export default function PropertyLinkImporter() {
   );
 }
 
-const tenancyOptions = ["6 months", "12 months", "18 months", "24 months"];
 
-// Who the investor will let to. Kept to the choices that actually change who
-// applies, rather than a long form nobody fills in.
-const tenantPreferences = [
-  "Professionals",
-  "Families",
-  "Students",
-  "Sharers",
-  "Couples",
-  "Pets considered",
-  "Housing benefit considered",
-  "Non-smokers only",
-];
-
-function PublishModal({
-  property,
-  defaultRent,
-  existing,
-  onCancel,
-  onPublish,
-}: {
-  property: ImportedProperty;
-  defaultRent: number;
-  existing: PublishDetails | null;
-  onCancel: () => void;
-  onPublish: (details: PublishDetails) => void;
-}) {
-  const [rent, setRent] = useState(String(existing?.rent ?? defaultRent));
-  const [availableFrom, setAvailableFrom] = useState(existing?.availableFrom ?? "");
-  const [minTenancy, setMinTenancy] = useState(existing?.minTenancy ?? "12 months");
-  const [notes, setNotes] = useState(existing?.notes ?? "");
-  const [accepts, setAccepts] = useState<string[]>(existing?.accepts ?? ["Professionals"]);
-  const [touched, setTouched] = useState(false);
-
-  function toggleAccept(option: string) {
-    setAccepts((list) =>
-      list.includes(option) ? list.filter((o) => o !== option) : [...list, option]
-    );
-  }
-
-  const rentNumber = Number(rent);
-  const rentValid = rent.trim() !== "" && Number.isFinite(rentNumber) && rentNumber > 0;
-
-  function submit() {
-    setTouched(true);
-    if (!rentValid) return;
-    onPublish({ rent: rentNumber, availableFrom, minTenancy, notes, accepts });
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-brand-border bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-xl font-semibold text-brand-ink">Publish property</h3>
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="Close"
-            className="text-brand-muted hover:text-brand-ink"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-xl bg-brand-surface p-3">
-          <p className="text-sm font-semibold text-brand-ink">{property.title}</p>
-          <p className="text-xs text-brand-muted">{property.location}</p>
-        </div>
-
-        <label className="mt-4 block text-xs font-semibold text-brand-muted">
-          Target monthly rent (£)
-          <input
-            type="text"
-            inputMode="numeric"
-            value={rent}
-            onChange={(e) => setRent(e.target.value.replace(/[^\d]/g, ""))}
-            className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-          />
-        </label>
-        {touched && !rentValid && (
-          <p className="mt-1 text-xs font-medium text-red-600">Enter a monthly rent first</p>
-        )}
-
-        <label className="mt-3 block text-xs font-semibold text-brand-muted">
-          Available from
-          <input
-            type="date"
-            value={availableFrom}
-            onChange={(e) => setAvailableFrom(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-          />
-        </label>
-
-        <label className="mt-3 block text-xs font-semibold text-brand-muted">
-          Minimum tenancy
-          <select
-            value={minTenancy}
-            onChange={(e) => setMinTenancy(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-          >
-            {tenancyOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="mt-4">
-          <p className="text-xs font-semibold text-brand-muted">Who would you let to?</p>
-          <p className="mt-0.5 text-[11px] text-brand-muted">
-            Shown on your listing so the right tenants apply. Pick any that fit.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {tenantPreferences.map((option) => {
-              const on = accepts.includes(option);
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => toggleAccept(option)}
-                  aria-pressed={on}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    on
-                      ? "border-brand-blue bg-brand-blue text-white"
-                      : "border-brand-border bg-white text-brand-muted hover:border-brand-blue hover:text-brand-blue"
-                  }`}
-                >
-                  {on ? "✓ " : ""}
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <label className="mt-3 block text-xs font-semibold text-brand-muted">
-          Notes for tenants (optional)
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Parking available, pets considered, etc."
-            className="mt-1 w-full resize-none rounded-lg border border-brand-border bg-white px-3 py-2 text-sm font-medium text-brand-ink outline-none focus:border-brand-blue"
-          />
-        </label>
-
-        <div className="mt-5 flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 rounded-lg border border-brand-border px-4 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-surface"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            className="flex-1 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
-          >
-            Publish
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

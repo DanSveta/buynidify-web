@@ -1,6 +1,6 @@
 // All landing-page copy and data lives here so it's easy to edit without touching
 // component/layout code. Content mirrors the "Veta's edit landing page" Figma frame
-// exactly — copy, numbers, and structure should not be improvised.
+// exactly. Copy, numbers, and structure should not be improvised.
 
 export type Property = {
   id: string;

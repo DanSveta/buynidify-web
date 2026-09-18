@@ -22,11 +22,14 @@
   --color-brand-muted: #4b5563;
   --color-brand-surface: #f9fafb;
   --color-brand-border: #e5e7eb;
-  /* Two neutral roles the dark theme needs to move independently:
-     "page" is the app background behind the cards, "card" is the panel
-     surface itself. In light mode page is the grey wash and card is white,
-     which is the relationship every screen already had. */
-  --color-brand-page: #f9fafb;
+  /* Three neutral surfaces, which is what gives the portal its depth:
+     "panel" is the chrome (sidebar and top bar) and stays plain, "page" is
+     the working area behind the cards and sits a step darker so the content
+     reads as inset, and "card" is the surface content sits on. Brand colour
+     is then spent only on the things that matter - the active nav item,
+     buttons, badges - instead of flooding the whole sidebar. */
+  --color-brand-panel: #ffffff;
+  --color-brand-page: #f2f3f5;
   --color-brand-card: #ffffff;
 
   /* Headings and body both Figtree - confirmed against the Figma file with
@@ -59,6 +62,9 @@
    page color for tints.
    --------------------------------------------------------------------------- */
 [data-theme="dark"] {
+  /* Same three-surface relationship, inverted: the chrome stays plainest,
+     the working area is darkest, cards lift off it. */
+  --color-brand-panel: #12161f;
   --color-brand-page: #0e1117;
   --color-brand-card: #171b23;
   --color-brand-surface: #222834;
@@ -88,15 +94,6 @@
 [data-theme="dark"] .bg-brand-blue-light,
 [data-theme="dark"] .hover\:bg-brand-blue-light:hover {
   background-color: var(--brand-primary-sunk);
-}
-
-/* The sidebar is a solid block of the palette's primary in light mode. At
-   full saturation next to a near-black page it shouts, so in dark it drops
-   to a panel one step lighter than the page and the primary survives as the
-   accent on the active item instead. */
-[data-theme="dark"] .sidebar-panel {
-  background-color: #12161f;
-  border-right: 1px solid var(--color-brand-border);
 }
 
 /* Status chips (verified / overdue / pending) are built as a pale tint with

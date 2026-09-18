@@ -4,6 +4,7 @@ import { deals, properties } from "../data/mockData";
 import { useListings } from "../context/ListingsContext";
 import PropertyCard from "../components/PropertyCard";
 import ListingCard from "../components/ListingCard";
+import DashboardGreeting from "../components/DashboardGreeting";
 
 export default function Overview() {
   const { role } = useRole();
@@ -16,15 +17,17 @@ export default function Overview() {
 
     return (
       <div>
-        <span className="mb-2 inline-block rounded-full bg-brand-blue-light px-3 py-1 text-xs font-semibold text-brand-blue">
-          Investor Portal
-        </span>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">
-          Discover investment properties
-        </h1>
-        <p className="mt-1 text-brand-muted">
-          {owned.length} properties in your portfolio · {demandCount} live tenant-demand signals
-        </p>
+        <DashboardGreeting
+          subtitle={`${owned.length} properties in your portfolio · ${demandCount} live tenant-demand signals`}
+          action={
+            <Link
+              to="/app/search"
+              className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+            >
+              Find properties
+            </Link>
+          }
+        />
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-brand-border bg-white p-5">
@@ -94,6 +97,18 @@ export default function Overview() {
 
   return (
     <div>
+      <DashboardGreeting
+        subtitle="Find your next home with AI-powered matching, no jargon, no stress."
+        action={
+          <Link
+            to="/app/search"
+            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+          >
+            Search homes
+          </Link>
+        }
+      />
+
       <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-brand-border bg-brand-surface p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-brand-ink">
@@ -113,18 +128,12 @@ export default function Overview() {
 
       <div className="flex flex-col gap-4 rounded-2xl border border-brand-border bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-brand-ink">
-            Hello, <span className="text-brand-blue">Tenant</span>
-          </h1>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-brand-ink">
+            Your search at a glance
+          </h2>
           <p className="mt-1 max-w-md text-sm text-brand-muted">
-            Find your next home with AI-powered matching — no jargon, no stress.
+            What you can afford, what's verified, and what still needs your attention.
           </p>
-          <Link
-            to="/app/search"
-            className="mt-4 inline-block rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
-          >
-            Search homes
-          </Link>
         </div>
         <div className="flex-shrink-0 rounded-xl border border-brand-border bg-brand-surface p-4 text-center sm:text-right">
           <p className="text-xs text-brand-muted">Your affordability limit</p>

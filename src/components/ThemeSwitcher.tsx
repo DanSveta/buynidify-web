@@ -6,7 +6,7 @@ type ThemeSwitcherProps = {
 };
 
 // A row of clickable color swatches, one per palette explored in Figma.
-// Clicking a swatch live-updates the site's CSS variables everywhere —
+// Clicking a swatch live-updates the site's CSS variables everywhere:
 // meant for a stakeholder to click through and preview looks, no code
 // change or rebuild needed.
 export default function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {

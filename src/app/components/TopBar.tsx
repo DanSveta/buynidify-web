@@ -4,6 +4,8 @@ import { useRole } from "../context/RoleContext";
 import { useTheme } from "../context/ThemeContext";
 import { useListings } from "../context/ListingsContext";
 import { usePersistedState } from "../utils/usePersistedState";
+import { initialsOf } from "../utils/greeting";
+import { useAuthGate } from "../context/AuthGateContext";
 
 // Dashboard header: quick search, light/dark switch, messages, notifications
 // and the account menu. Everything in here is driven by real app state - the
@@ -63,6 +65,14 @@ function BellIcon({ className }: { className?: string }) {
   );
 }
 
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
 function MailIcon({ className }: { className?: string }) {
   return (
     <svg {...iconProps} className={className}>
@@ -91,7 +101,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-brand-border bg-white text-brand-muted transition-colors hover:border-brand-blue hover:text-brand-blue"
+      className="relative flex h-10 w-10 items-center justify-center rounded-full border border-brand-border bg-brand-panel text-brand-muted transition-colors hover:border-brand-blue hover:text-brand-blue"
     >
       <span className="h-[18px] w-[18px]">{children}</span>
       {!!badge && (
@@ -113,11 +123,9 @@ function pagesFor(role: string): Hit[] {
     { label: "Messages", sub: "Page", to: "/app/messages" },
     { label: "Platform listings", sub: "Page", to: "/app/platform-listings" },
     { label: "Profile", sub: "Page", to: "/app/profile" },
-    { label: "Verification", sub: "Page", to: "/app/verification" },
-    { label: "Pricing", sub: "Page", to: "/app/pricing" },
     { label: "Relocate AI", sub: "Page", to: "/app/relocate" },
     { label: "Help & Support", sub: "Page", to: "/app/support" },
-    { label: "Upgrade to Premium", sub: "Page", to: "/app/premium" },
+    { label: "Settings", sub: "Page", to: "/app/profile" },
   ];
   if (role === "corporate") {
     return [{ label: "Company Dashboard", sub: "Page", to: "/app/b2b" }, ...common];
@@ -127,7 +135,6 @@ function pagesFor(role: string): Hit[] {
     { label: role === "investor" ? "Search Properties" : "Find a Home", sub: "Page", to: "/app/search" },
     { label: role === "investor" ? "Shortlist" : "Saved Homes", sub: "Page", to: "/app/shortlist" },
     { label: role === "investor" ? "Mutual Matches" : "Matched!", sub: "Page", to: "/app/matches" },
-    { label: "Local Services", sub: "Page", to: "/app/local-services" },
     ...common,
   ];
 }
@@ -193,9 +200,9 @@ function QuickSearch() {
         }}
         onFocus={() => setOpen(true)}
         placeholder="Search anything..."
-        className="h-10 w-full rounded-full border border-brand-border bg-white pl-11 pr-16 text-sm text-brand-ink placeholder:text-brand-muted focus:border-brand-blue focus:outline-none"
+        className="h-10 w-full rounded-full border border-brand-border bg-brand-page pl-11 pr-4 sm:pr-16 text-sm text-brand-ink placeholder:text-brand-muted focus:border-brand-blue focus:outline-none"
       />
-      <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-brand-border px-1.5 py-0.5 text-[10px] font-medium text-brand-muted">
+      <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-brand-border px-1.5 py-0.5 text-[10px] font-medium text-brand-muted sm:block">
         ⌘K
       </kbd>
 
@@ -234,11 +241,13 @@ type Note = { id: string; title: string; body: string; to: string };
 
 /* --- top bar --------------------------------------------------------------- */
 
-export default function TopBar() {
+export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const navigate = useNavigate();
-  const { role, logout } = useRole();
+  const { role, name, logout } = useRole();
+  const { promptSignUp } = useAuthGate();
   const { dark, toggleDark } = useTheme();
-  const { threads, matches, investorListings, interestedTenantsFor } = useListings();
+  const { threads, matches, investorListings, interestedTenantsFor, unreadThreadCount } =
+    useListings();
 
   const [openPanel, setOpenPanel] = useState<"bell" | "avatar" | null>(null);
   const [readIds, setReadIds] = usePersistedState<string[]>("buynidify:read-notifications", []);
@@ -294,29 +303,37 @@ export default function TopBar() {
   }, [matches, threads, role, investorListings, interestedTenantsFor]);
 
   const unread = notes.filter((n) => !readIds.includes(n.id));
-  const unreadMessages = threads.filter((t) => {
-    const last = t.messages[t.messages.length - 1];
-    return last && last.from === "them" && !readIds.includes(`msg-${t.counterpartyId}-${last.id}`);
-  }).length;
 
-  const initials = role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
+  const initials = name ? initialsOf(name) : role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-brand-border bg-brand-page/85 px-8 py-3 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-brand-border bg-brand-panel px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
+      <button
+        type="button"
+        onClick={onMenu}
+        aria-label="Open menu"
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-brand-border text-brand-muted lg:hidden"
+      >
+        <MenuIcon className="h-[18px] w-[18px]" />
+      </button>
+
       <QuickSearch />
 
       <div ref={wrapRef} className="relative ml-auto flex items-center gap-2">
+        <span className="hidden sm:block">
         <IconButton label={dark ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleDark}>
           {dark ? <SunIcon /> : <MoonIcon />}
         </IconButton>
+        </span>
 
+        {/* The count clears as conversations are opened, not on this click,
+            so the badge always reflects what's actually still unread. */}
+        {role ? (
+          <>
         <IconButton
           label="Messages"
-          badge={unreadMessages}
-          onClick={() => {
-            setReadIds(notes.filter((n) => n.id.startsWith("msg-")).map((n) => n.id).concat(readIds));
-            navigate("/app/messages");
-          }}
+          badge={unreadThreadCount}
+          onClick={() => navigate("/app/messages")}
         >
           <MailIcon />
         </IconButton>
@@ -333,10 +350,20 @@ export default function TopBar() {
           type="button"
           onClick={() => setOpenPanel((p) => (p === "avatar" ? null : "avatar"))}
           aria-label="Account"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-xs font-bold text-white ring-2 ring-brand-page transition-transform hover:scale-105"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue text-xs font-bold text-white ring-2 ring-brand-panel transition-transform hover:scale-105"
         >
           {initials}
         </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={promptSignUp}
+            className="rounded-full bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+          >
+            Sign up
+          </button>
+        )}
 
         {openPanel === "bell" && (
           <div className="absolute right-0 top-12 w-80 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
@@ -389,14 +416,14 @@ export default function TopBar() {
         {openPanel === "avatar" && (
           <div className="absolute right-0 top-12 w-60 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
             <div className="border-b border-brand-border px-4 py-3">
-              <p className="text-sm font-semibold text-brand-ink">{roleLabel[role ?? "investor"]} account</p>
-              <p className="text-xs text-brand-muted">Signed in to Buynidify</p>
+              <p className="text-sm font-semibold text-brand-ink">{name || "Your account"}</p>
+              <p className="text-xs text-brand-muted">
+                Signed in as {roleLabel[role ?? "investor"].toLowerCase()}
+              </p>
             </div>
             {[
               { label: "My profile", to: "/app/profile" },
-              { label: "Verification", to: "/app/verification" },
               { label: "Messages", to: "/app/messages" },
-              { label: "Billing", to: "/app/billing" },
               { label: "Help & Support", to: "/app/support" },
             ].map((item) => (
               <button

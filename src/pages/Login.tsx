@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useRole, type Role } from "../app/context/RoleContext";
 import {
@@ -39,11 +40,14 @@ const scenarios: {
 ];
 
 export default function Login() {
-  const { login } = useRole();
+  const { login, name: savedName } = useRole();
   const navigate = useNavigate();
+  const [name, setName] = useState(savedName);
 
   function handleSelect(role: Role, destination: string) {
-    login(role);
+    // An empty name is fine - RoleContext falls back to a stand-in so the
+    // dashboard greeting is never blank.
+    login(role, name);
     navigate(destination);
   }
 
@@ -61,8 +65,29 @@ export default function Login() {
             How are you using Buynidify?
           </h1>
           <p className="mt-2 text-brand-muted">
-            Choose how you'd like to sign in. You can log out and pick a
-            different one any time.
+            Choose how you'd like to sign in. You can log out and pick a different one any time.
+          </p>
+          <p className="mt-3 text-sm text-brand-muted">
+            Just looking?{" "}
+            <Link to="/app/search" className="font-semibold text-brand-blue hover:underline">
+              Browse without an account →
+            </Link>
+          </p>
+        </div>
+
+        <div className="mx-auto mb-8 max-w-sm">
+          <label className="block text-xs font-semibold text-brand-muted">
+            Your name
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Andrew"
+              className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2.5 text-sm text-brand-ink outline-none focus:border-brand-blue"
+            />
+          </label>
+          <p className="mt-1.5 text-center text-[11px] text-brand-muted">
+            Used to greet you in the portal. Optional.
           </p>
         </div>
 

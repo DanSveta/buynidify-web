@@ -5,13 +5,21 @@ import { useDropDirection } from "./useDropDirection";
 type Props = {
   options: string[];
   defaultValue?: string;
+  /** Optional, so the hero can read the chosen range when you search. */
+  onChange?: (value: string) => void;
 };
 
 // Same custom-dropdown treatment as Location and Property Type, instead of
 // a native <select> (which looks/behaves differently from the other two
 // fields once opened).
-export default function PriceRangeCombobox({ options, defaultValue }: Props) {
+export default function PriceRangeCombobox({ options, defaultValue, onChange }: Props) {
   const [value, setValue] = useState(defaultValue ?? options[0]);
+
+  function choose(next: string) {
+    setValue(next);
+    onChange?.(next);
+    setOpen(false);
+  }
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const dropUp = useDropDirection(open, rootRef);
@@ -50,10 +58,7 @@ export default function PriceRangeCombobox({ options, defaultValue }: Props) {
                 <button
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    setValue(option);
-                    setOpen(false);
-                  }}
+                  onClick={() => choose(option)}
                   className={`block w-full px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                     option === value
                       ? "bg-brand-blue-light text-brand-blue"

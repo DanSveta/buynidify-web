@@ -38,6 +38,46 @@ export type MockProperty = {
   type: string;
 };
 
+export type FetchedProperty = MockProperty & {
+  /** True when the details came off the real listing rather than the URL. */
+  real: boolean;
+  baths?: number;
+  postcode?: string;
+  agent?: string;
+  imageUrl?: string;
+  /** Why we fell back, when we did. */
+  note?: string;
+};
+
+/** Asks our server to read the actual listing. Falls back to the generated
+ *  preview if the portal blocks us, so pasting a link never dead-ends. */
+export async function fetchPropertyFromUrl(url: string): Promise<FetchedProperty> {
+  const fallback = { ...buildMockPropertyFromUrl(url), real: false };
+  try {
+    const response = await fetch(`/api/property?url=${encodeURIComponent(url)}`);
+    if (!response.ok) return { ...fallback, note: "Couldn't reach the listing." };
+    const data = await response.json();
+    if (!data?.ok) {
+      return { ...fallback, note: data?.error ?? "Couldn't read that listing." };
+    }
+    return {
+      real: true,
+      portal: detectPortal(url),
+      address: data.address ?? fallback.address,
+      city: data.city ?? fallback.city,
+      beds: typeof data.beds === "number" ? data.beds : fallback.beds,
+      baths: data.baths,
+      price: typeof data.price === "number" ? data.price : fallback.price,
+      type: data.type ?? fallback.type,
+      postcode: data.postcode,
+      agent: data.agent,
+      imageUrl: data.imageUrl,
+    };
+  } catch {
+    return { ...fallback, note: "Couldn't reach the listing." };
+  }
+}
+
 export function buildMockPropertyFromUrl(url: string): MockProperty {
   const seed = hashString(url);
   const portal = detectPortal(url);

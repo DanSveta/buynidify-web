@@ -1,4 +1,4 @@
-// Mock data for the Buynidify product app. Everything here is fake —
+// Mock data for the Buynidify product app. Everything here is fake:
 // no backend, no real listings, no real payments. England-only for now,
 // per the 2026-09-04 call notes (stay UK-focused, no other countries yet).
 

@@ -23,9 +23,9 @@ export default function Navbar() {
   }, []);
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-16 z-50 px-4">
+    <header className="pointer-events-none fixed inset-x-0 top-4 z-50 px-3 sm:top-16 sm:px-4">
       <div
-        className={`pointer-events-auto mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border py-3 pl-8 pr-3.5 shadow-2xl shadow-black/30 backdrop-blur-2xl backdrop-saturate-150 transition-all duration-300 ${
+        className={`pointer-events-auto mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border py-2.5 pl-5 pr-2.5 shadow-2xl sm:py-3 sm:pl-8 sm:pr-3.5 shadow-black/30 backdrop-blur-2xl backdrop-saturate-150 transition-all duration-300 ${
           scrolled
             ? "border-white/10 bg-brand-ink/90"
             : "border-white/25 bg-black/20"
@@ -37,7 +37,7 @@ export default function Navbar() {
               looking like the headline. Bigger and a weight lighter brings
               the contrast back; the touch of positive tracking stops the
               thin strokes from closing up at this size. */}
-          <span className="font-wordmark text-[2.1rem] font-medium tracking-[0.015em] leading-none text-white">
+          <span className="font-wordmark text-[1.7rem] font-medium leading-none tracking-[0.015em] text-white sm:text-[2.1rem]">
             Buynidify
           </span>
           <span className="h-1.5 w-1.5 rounded-full bg-brand-gold" />
@@ -79,10 +79,10 @@ export default function Navbar() {
             Sign in
           </Link>
           <Link
-            to="/login"
+            to="/app/search"
             className="group hidden items-center gap-2.5 rounded-full bg-white py-2 pl-5 pr-2 text-[15px] font-semibold text-brand-ink transition-all duration-200 hover:shadow-lg sm:inline-flex"
           >
-            Get started
+            Start searching
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink text-white transition-transform duration-200 group-hover:rotate-45">
               <ArrowRightIcon className="h-3.5 w-3.5" />
             </span>
@@ -131,11 +131,11 @@ export default function Navbar() {
               Sign in
             </Link>
             <Link
-              to="/login"
+              to="/app/search"
               onClick={() => setOpen(false)}
               className="mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-white py-2 pl-5 pr-2 text-sm font-semibold text-brand-ink"
             >
-              Get started
+              Start searching
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink text-white">
                 <ArrowRightIcon className="h-3.5 w-3.5" />
               </span>

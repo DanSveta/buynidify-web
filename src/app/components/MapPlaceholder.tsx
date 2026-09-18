@@ -75,7 +75,7 @@ export default function MapPlaceholder({ properties }: Props) {
           demand
         </span>
         <span className="text-brand-muted/70">
-          Illustrative placeholder — wire up to a real map provider later.
+          Illustrative placeholder. Wire up to a real map provider later.
         </span>
       </div>
     </div>

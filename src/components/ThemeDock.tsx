@@ -13,9 +13,9 @@ export default function ThemeDock() {
   const current = palettes.find((p) => p.id === paletteId) ?? palettes[0];
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 print:hidden">
+    <div className="fixed bottom-4 right-4 z-40 print:hidden sm:bottom-6 sm:right-6">
       {open ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-brand-ink/90 py-2.5 pl-4 pr-2.5 shadow-2xl shadow-black/30 backdrop-blur-xl">
+        <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-3 rounded-2xl border border-white/15 bg-brand-ink/90 py-2.5 pl-4 pr-2.5 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="leading-tight">
             <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/50">
               Preview theme

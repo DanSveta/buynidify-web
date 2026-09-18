@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useListings, type InterestedTenant } from "../context/ListingsContext";
+import { profileFromInterestedTenant } from "../utils/profiles";
+import { useAuthGate } from "../context/AuthGateContext";
 
 // Opened from an interested-tenant row. Shows who they are and lets the
 // investor start a conversation without leaving the page - the message lands
@@ -14,13 +16,28 @@ export default function TenantProfileModal({
   onClose: () => void;
 }) {
   const { sendMessage, threadFor } = useListings();
+  const { requireAccount } = useAuthGate();
   const [body, setBody] = useState("");
   const [sent, setSent] = useState(false);
   const thread = threadFor(tenant.id);
 
   function send() {
     if (!body.trim()) return;
-    sendMessage({ id: tenant.id, name: tenant.name, context }, body);
+    requireAccount({
+      title: "Message this tenant",
+      message:
+        "Messages go through Buynidify, so both sides know who they're talking to. Create an account to send it.",
+      action: deliver,
+    });
+  }
+
+  function deliver() {
+    // Carry the tenant's real details onto the thread so the Messages page
+    // can show their profile beside the conversation.
+    sendMessage(
+      { id: tenant.id, name: tenant.name, context, profile: profileFromInterestedTenant(tenant) },
+      body
+    );
     setBody("");
     setSent(true);
   }
@@ -78,7 +95,7 @@ export default function TenantProfileModal({
               setSent(false);
             }}
             rows={3}
-            placeholder="Hi, thanks for your interest — would you like to arrange a viewing?"
+            placeholder="Hi, thanks for your interest. Happy to answer anything about the property or the timings."
             className="mt-1 w-full resize-none rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-ink outline-none focus:border-brand-blue"
           />
         </label>

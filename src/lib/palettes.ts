@@ -1,10 +1,10 @@
 // Color palette options, pulled from the real color variants explored in Figma
 // (the "Veta's edit landing page", "neon blue", "purple", and "green" frames).
-// The ThemeSwitcher lets a stakeholder click through these live on the site —
+// The ThemeSwitcher lets a stakeholder click through these live on the site.
 // no code change needed to preview a different look.
 //
 // Every palette maps to the SAME CSS variable names (defined in index.css),
-// so components never reference a color literally — they reference a role
+// so components never reference a color literally. They reference a role
 // (brand-blue = primary, brand-gold = accent). Swapping a palette just swaps
 // what those roles point to.
 

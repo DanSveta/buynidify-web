@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { useRole } from "../context/RoleContext";
-import { properties, type PropertyType } from "../data/mockData";
-import PropertyCard from "../components/PropertyCard";
-import MapPlaceholder from "../components/MapPlaceholder";
+import { type PropertyType } from "../data/mockData";
 import PropertyLinkImporter from "../components/PropertyLinkImporter";
+import AddedPropertiesSummary from "../components/AddedPropertiesSummary";
+import MarketplaceGrid from "../components/MarketplaceGrid";
+import { useListings } from "../context/ListingsContext";
+import { Link, useSearchParams } from "react-router-dom";
 import { SearchIcon } from "../../components/icons";
 import LocationCombobox from "../../components/LocationCombobox";
 import PropertyTypeCombobox from "../../components/PropertyTypeCombobox";
@@ -247,7 +249,9 @@ const portalMeta = {
   onthemarket: { label: "OnTheMarket", initial: "O", badge: "bg-orange-600" },
 } as const;
 
-export default function Search() {
+/** The search experience itself, used by the public /search page and by the
+ *  signed-in portal. Same filters, same results, different chrome around it. */
+export default function Search({ chrome = "portal" }: { chrome?: "public" | "portal" }) {
   const { role } = useRole();
   const isInvestor = role === "investor";
 
@@ -255,12 +259,17 @@ export default function Search() {
   const transactionType = "sale" as const;
   // LocationCombobox takes free text as well as list choices, so one piece
   // of state covers both cities and postcodes.
-  const [location, setLocation] = useState("London");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
-  const [bedrooms, setBedrooms] = useState("Any");
-  const [portalPropertyType, setPortalPropertyType] = useState<PortalPropertyType>("Any");
-  const [view, setView] = useState<"list" | "map">("list");
+  // A search started on the landing page arrives as query parameters, so the
+  // public page opens already filtered the way the person asked for.
+  const [params] = useSearchParams();
+  // Empty by default: the whole country until you actually pick somewhere.
+  const [location, setLocation] = useState(params.get("location") ?? "");
+  const [priceMin, setPriceMin] = useState(params.get("min") ?? "");
+  const [priceMax, setPriceMax] = useState(params.get("max") ?? "");
+  const [bedrooms, setBedrooms] = useState(params.get("beds") ?? "Any");
+  const [portalPropertyType, setPortalPropertyType] = useState<PortalPropertyType>(
+    (params.get("type") as PortalPropertyType) ?? "Any"
+  );
   // Filtering is live, so the Search button's job is to take you to the
   // results rather than to trigger a fetch.
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -269,22 +278,57 @@ export default function Search() {
   const mockTypes = portalTypeToMockTypes[portalPropertyType];
 
   const minBeds = bedrooms === "Any" ? 0 : parseInt(bedrooms, 10);
-  const maxPriceNum = priceMax ? Number(priceMax) : Infinity;
-  const minPriceNum = priceMin ? Number(priceMin) : 0;
+  const rawMin = priceMin ? Number(priceMin) : 0;
+  const rawMax = priceMax ? Number(priceMax) : Infinity;
+  // Typing the max below the min used to return nothing with no explanation.
+  // Say so, and in the meantime read the pair the way it was obviously meant.
+  const priceInverted = Boolean(priceMin && priceMax && rawMax < rawMin);
+  const minPriceNum = priceInverted ? rawMax : rawMin;
+  const maxPriceNum = priceInverted ? rawMin : rawMax;
 
-  const results = useMemo(() => {
-    return properties.filter((p) => {
-      if (p.beds < minBeds) return false;
-      if (p.price > maxPriceNum || p.price < minPriceNum) return false;
-      if (mockTypes && !mockTypes.includes(p.type)) return false;
-      return true;
-    });
-  }, [minBeds, maxPriceNum, minPriceNum, mockTypes]);
+  // Same filters, applied to what's actually on Buynidify.
+  const { investorListings, tenantDemand } = useListings();
+
+  const platformListings = useMemo(
+    () =>
+      investorListings.filter((l) => {
+        if (l.beds < minBeds) return false;
+        if (l.price > maxPriceNum || l.price < minPriceNum) return false;
+        if (mockTypes && !mockTypes.includes(l.type as PropertyType)) return false;
+        if (effectiveLocation && !`${l.city} ${l.address}`.toLowerCase().includes(effectiveLocation.toLowerCase()))
+          return false;
+        return true;
+      }),
+    [investorListings, minBeds, maxPriceNum, minPriceNum, mockTypes, effectiveLocation]
+  );
+
+  const platformDemand = useMemo(
+    () =>
+      tenantDemand.filter((d) => {
+        if (d.minBeds < minBeds) return false;
+        const price = d.targetPrice ?? 0;
+        if (price && (price > maxPriceNum || price < minPriceNum)) return false;
+        if (mockTypes && !mockTypes.includes(d.propertyType as PropertyType)) return false;
+        if (effectiveLocation && !d.city.toLowerCase().includes(effectiveLocation.toLowerCase()))
+          return false;
+        return true;
+      }),
+    [tenantDemand, minBeds, maxPriceNum, minPriceNum, mockTypes, effectiveLocation]
+  );
+
+  // Both sides of the marketplace, with the one most useful to you first.
+  const [side, setSide] = useState<"investors" | "tenants">(
+    isInvestor ? "tenants" : "investors"
+  );
 
   return (
     <div>
       <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">
-        {isInvestor ? "Search Properties" : "Find a Home to Buy"}
+        {chrome === "public"
+          ? "Search UK property"
+          : isInvestor
+            ? "Search Properties"
+            : "Find a Home to Buy"}
       </h1>
       <p className="mt-1 text-brand-muted">
         {isInvestor
@@ -314,6 +358,7 @@ export default function Search() {
               options={ukCities}
               value={location}
               onChange={setLocation}
+              placeholder="Anywhere in the UK"
             />
           </Segment>
 
@@ -337,9 +382,25 @@ export default function Search() {
                 value={formatThousands(priceMax)}
                 onChange={(e) => setPriceMax(digitsOnly(e.target.value))}
                 placeholder="Max"
-                className={`${fieldClass} w-20`}
+                className={`${fieldClass} w-20 ${priceInverted ? "text-red-600" : ""}`}
+                aria-invalid={priceInverted}
               />
             </div>
+            {priceInverted && (
+              <p className="mt-1 text-[11px] font-medium text-red-600">
+                Maximum is below the minimum.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPriceMin(priceMax);
+                    setPriceMax(priceMin);
+                  }}
+                  className="font-semibold underline underline-offset-2"
+                >
+                  Swap them
+                </button>
+              </p>
+            )}
           </Segment>
 
           <Segment label="Bedrooms">
@@ -385,9 +446,11 @@ export default function Search() {
           counts do. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
         <p className="text-sm text-brand-muted">
-          <span className="font-semibold text-brand-ink">{results.length}</span>{" "}
-          propert{results.length === 1 ? "y" : "ies"} on Buynidify
-          {effectiveLocation ? ` near ${effectiveLocation}` : ""}
+          <span className="font-semibold text-brand-ink">
+            {platformListings.length + platformDemand.length}
+          </span>{" "}
+          {platformListings.length + platformDemand.length === 1 ? "match" : "matches"} on Buynidify
+          {effectiveLocation ? ` near ${effectiveLocation}` : " across the UK"}
         </p>
         {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
           <button
@@ -463,56 +526,80 @@ export default function Search() {
         </div>
       </div>
 
-      {/* Found something on a real portal? Paste the link and run the AI
-          check. Both roles get this now - the component itself switches
-          between the investor (yield + publish to tenants) and tenant
-          (affordability + register interest) flows. */}
-      <PropertyLinkImporter />
+      {/* Found something on a real portal? Paste the link here. This is the
+          one place a property enters the platform; everything you do with it
+          afterwards happens on My Properties. */}
+      {/* On the public page this is the only place a link lives, so it shows
+          the full cards: analysis, details, publish. In the portal it's just
+          the input, because My Properties owns the detail. */}
+      <PropertyLinkImporter inputOnly={chrome === "portal"} />
+      {chrome === "portal" && <AddedPropertiesSummary />}
 
-      {/* Browse listings already on Buynidify, filtered by the same criteria above */}
-      <div ref={resultsRef} className="mt-8 scroll-mt-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl font-semibold tracking-tight text-brand-ink">
-            {results.length} propert{results.length === 1 ? "y" : "ies"} on Buynidify
-          </h2>
-          <div className="flex rounded-lg border border-brand-border bg-white p-0.5">
-            <button
-              onClick={() => setView("list")}
-              className={`rounded-md px-3 py-1 text-xs font-semibold ${
-                view === "list" ? "bg-brand-blue text-white" : "text-brand-muted"
-              }`}
-            >
-              List
-            </button>
-            <button
-              onClick={() => setView("map")}
-              className={`rounded-md px-3 py-1 text-xs font-semibold ${
-                view === "map" ? "bg-brand-blue text-white" : "text-brand-muted"
-              }`}
-            >
-              Map
-            </button>
+      {/* The other side of the platform, filtered by the same criteria you
+          just searched with. An investor sees what tenants are asking for; a
+          tenant sees what investors have published. Those are the only two
+          things that exist on Buynidify, so that's what belongs here. */}
+      <div ref={resultsRef} className="mt-10 scroll-mt-6">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl font-semibold tracking-tight text-brand-ink">
+              On Buynidify
+            </h2>
+            <p className="mt-0.5 max-w-xl text-sm text-brand-muted">
+              Properties investors have published, and properties tenants are asking an investor to
+              buy. Both filtered by your search.
+            </p>
           </div>
+          <Link
+            to={role ? "/app/platform-listings" : "/listings"}
+            className="flex-shrink-0 text-xs font-semibold text-brand-blue hover:underline"
+          >
+            See the whole marketplace →
+          </Link>
         </div>
 
-        {view === "map" ? (
-          <MapPlaceholder properties={results} />
-        ) : results.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
-            No properties match those filters. Try widening your search, or
-            use the portal links above for the full UK market.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {results.map((property) => (
-              <PropertyCard
-                key={property.id}
-                property={property}
-                showFavorite
-              />
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {([
+            { id: "investors", label: "From investors", count: platformListings.length },
+            { id: "tenants", label: "From tenants", count: platformDemand.length },
+          ] as const).map((t) => {
+            const active = side === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSide(t.id)}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                  active
+                    ? "border-brand-blue bg-brand-blue text-white"
+                    : "border-brand-border bg-white text-brand-muted hover:border-brand-blue hover:text-brand-blue"
+                }`}
+              >
+                {t.label}
+                <span className={`ml-1.5 ${active ? "text-white/70" : "text-brand-muted"}`}>
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="mt-3 text-sm text-brand-muted">
+          {side === "investors"
+            ? "Properties investors are considering buying. Register interest and they know the demand is real."
+            : "Properties tenants want an investor to buy. Buy one and a tenant is already waiting."}
+        </p>
+
+        <MarketplaceGrid
+          side={side}
+          listings={platformListings}
+          demand={platformDemand}
+          emptyMessage={
+            side === "tenants"
+              ? "No tenant is asking for a property like this yet. Widen the filters, or paste a link above to publish one and find out."
+              : "No investor has published a property like this yet. Widen the filters, or paste a link above to ask for one."
+          }
+        />
       </div>
     </div>
   );
