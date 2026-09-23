@@ -7,6 +7,7 @@ import PublicMyProperties from "./pages/PublicMyProperties";
 import Partners from "./pages/Partners";
 import About from "./pages/About";
 import PropertyPage from "./pages/PropertyPage";
+import JourneyOptions from "./pages/JourneyOptions";
 import AppLayout from "./app/AppLayout";
 import { RoleProvider } from "./app/context/RoleContext";
 import { ThemeProvider } from "./app/context/ThemeContext";
@@ -55,6 +56,10 @@ export default function App() {
               a card, a modal and a My Properties row. Works whether you're
               signed in, signed out, browsing or the owner. */}
           <Route path="/property/:id" element={<PropertyPage />} />
+          {/* Internal design-review page for the Choose Your Journey
+              redesign - not linked in any nav, just a direct URL so Véta
+              can compare the three directions side by side. */}
+          <Route path="/journey-options" element={<JourneyOptions />} />
           {/* Browsing used to also live inside the gated dashboard at this
               path; it's now only here, in the public listings page, so a
               bookmark to the old portal URL still lands somewhere useful. */}

@@ -74,7 +74,9 @@ export type JourneyCard = {
   id: string;
   index: string;
   title: string;
+  tag: string;
   description: string;
+  highlights: string[];
   cta: string;
   icon: "investor" | "tenant" | "corporate";
 };
@@ -84,8 +86,10 @@ export const journeyCards: JourneyCard[] = [
     id: "investor",
     index: "01",
     title: "Investor",
+    tag: "Grow a portfolio",
     description:
-      "AI yield analysis, portfolio matching, and pre-vetted tenants. Grow your portfolio with confidence.",
+      "AI yield analysis, portfolio matching, and pre-vetted tenants.",
+    highlights: ["AI yield analysis", "Pre-vetted tenants", "Portfolio matching"],
     cta: "Start as Investor",
     icon: "investor",
   },
@@ -93,8 +97,10 @@ export const journeyCards: JourneyCard[] = [
     id: "tenant",
     index: "02",
     title: "Tenant",
+    tag: "Find a home",
     description:
-      "Find your home. Smart search, affordability analysis, and a transparent renting journey from search to keys.",
+      "Smart search, affordability checks, and a transparent journey from search to keys.",
+    highlights: ["Smart property search", "Affordability check", "Transparent process"],
     cta: "Find My Home",
     icon: "tenant",
   },
@@ -102,8 +108,10 @@ export const journeyCards: JourneyCard[] = [
     id: "corporate",
     index: "03",
     title: "Corporate",
+    tag: "House your team",
     description:
-      "Employee relocation, bulk housing requests, and a full HR dashboard for stress-free company housing.",
+      "Employee relocation, bulk housing requests, and a full HR dashboard.",
+    highlights: ["Bulk housing requests", "Employee relocation", "HR dashboard"],
     cta: "Talk to Sales",
     icon: "corporate",
   },
