@@ -1,11 +1,9 @@
 import Navbar from "../components/Navbar";
-import ThemeDock from "../components/ThemeDock";
 import Footer from "../components/Footer";
 import Hero from "../sections/Hero";
 import FeaturedProperties from "../sections/FeaturedProperties";
 import ChooseYourJourney from "../sections/ChooseYourJourney";
 import HowItWorks from "../sections/HowItWorks";
-import Stats from "../sections/Stats";
 import PropertyNiches from "../sections/PropertyNiches";
 import WhyBuynidify from "../sections/WhyBuynidify";
 import Testimonials from "../sections/Testimonials";
@@ -20,10 +18,8 @@ export default function LandingPage() {
       <Navbar />
       <main>
         <Hero />
-        <FeaturedProperties />
         <ChooseYourJourney />
         <HowItWorks />
-        <Stats />
         <PropertyNiches />
         <WhyBuynidify />
         <Testimonials />
@@ -31,9 +27,9 @@ export default function LandingPage() {
         <TopLocations />
         <CTASection />
         <RelocationAI />
+        <FeaturedProperties />
       </main>
       <Footer />
-      <ThemeDock />
     </div>
   );
 }

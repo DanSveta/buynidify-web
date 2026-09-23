@@ -1,7 +1,11 @@
 // One small circular avatar, used everywhere a person needs a chip-sized
 // picture: message lists, match cards, interested-tenant rows. Shows the
 // real photo when the profile has one, the initials mark otherwise (always
-// true for companies, which should look like a company, not a person).
+// true for companies, which should look like a company, not a person) - and
+// falls back to initials the moment the photo itself fails to load, rather
+// than showing the browser's broken-image icon.
+
+import { useState } from "react";
 
 const sizes = {
   xs: "h-7 w-7 text-[10px]",
@@ -25,12 +29,18 @@ export default function Avatar({
    *  tenant in a deal card). */
   ring?: string;
 }) {
+  const [failed, setFailed] = useState(false);
   return (
     <span
       className={`flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-blue font-bold text-white ${sizes[size]} ${ring ?? ""}`}
     >
-      {photoUrl ? (
-        <img src={photoUrl} alt={name ?? ""} className="h-full w-full object-cover" />
+      {photoUrl && !failed ? (
+        <img
+          src={photoUrl}
+          alt={name ?? ""}
+          className="h-full w-full object-cover"
+          onError={() => setFailed(true)}
+        />
       ) : (
         initials
       )}

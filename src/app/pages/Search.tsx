@@ -552,10 +552,12 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
             </p>
           </div>
           <Link
-            to={role ? "/app/platform-listings" : "/listings"}
+            to="/listings"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex-shrink-0 text-xs font-semibold text-brand-blue hover:underline"
           >
-            See the whole marketplace →
+            See the whole marketplace ↗
           </Link>
         </div>
 

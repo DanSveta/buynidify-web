@@ -44,13 +44,10 @@ export default function Navbar() {
         </a>
 
         <nav className="hidden items-center gap-8 md:flex">
-          <a href="#properties" className="text-[15px] text-white/70 transition-colors hover:text-white">
-            Properties
-          </a>
           {/* Straight into the live marketplace - both sides of the platform
               in one place. */}
           <Link
-            to="/app/platform-listings"
+            to="/listings"
             className="text-[15px] text-white/70 transition-colors hover:text-white"
           >
             Platform listings
@@ -67,6 +64,18 @@ export default function Navbar() {
             <ZapIcon className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
             Relocate
           </a>
+          <Link
+            to="/partners"
+            className="text-[15px] text-white/70 transition-colors hover:text-white"
+          >
+            Partners
+          </Link>
+          <Link
+            to="/about"
+            className="text-[15px] text-white/70 transition-colors hover:text-white"
+          >
+            About
+          </Link>
         </nav>
 
         <div className="flex items-center gap-4">
@@ -106,11 +115,8 @@ export default function Navbar() {
       {open && (
         <div className="pointer-events-auto mx-auto mt-2 max-w-6xl rounded-3xl border border-white/15 bg-brand-ink/90 p-5 backdrop-blur-xl md:hidden">
           <nav className="flex flex-col gap-4">
-            <a href="#properties" className="text-sm text-white/80" onClick={() => setOpen(false)}>
-              Properties
-            </a>
             <Link
-              to="/app/platform-listings"
+              to="/listings"
               className="text-sm text-white/80"
               onClick={() => setOpen(false)}
             >
@@ -127,6 +133,20 @@ export default function Navbar() {
               <ZapIcon className="h-3.5 w-3.5 text-brand-gold" />
               Relocate
             </a>
+            <Link
+              to="/partners"
+              className="text-sm text-white/80"
+              onClick={() => setOpen(false)}
+            >
+              Partners
+            </Link>
+            <Link
+              to="/about"
+              className="text-sm text-white/80"
+              onClick={() => setOpen(false)}
+            >
+              About
+            </Link>
             <Link to="/login" className="text-sm text-white/80" onClick={() => setOpen(false)}>
               Sign in
             </Link>

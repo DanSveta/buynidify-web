@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useListings, type MessageThread, type AgreementActor } from "../context/ListingsContext";
 import { useRole } from "../context/RoleContext";
 import ProfileSummary from "../components/ProfileSummary";
@@ -7,6 +7,7 @@ import Avatar from "../components/Avatar";
 import AgreementTimeline from "../components/AgreementTimeline";
 import { fallbackTenantProfile } from "../components/DealDetailPanel";
 import { minimalProfile, selfProfile, type PartyProfile, type PartyRole } from "../utils/profiles";
+import { checkForOffPlatformContact } from "../utils/contactFilter";
 
 // Platform-wide inbox, in three columns: conversations, the conversation
 // itself, and who you're talking to. The profile column is the point - on
@@ -38,8 +39,27 @@ export default function Messages() {
     advanceAgreement,
   } = useListings();
   const { role, namesByRole } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeId, setActiveId] = useState<string | null>(threads[0]?.counterpartyId ?? null);
   const [body, setBody] = useState("");
+  const [blockedReasons, setBlockedReasons] = useState<string[] | null>(null);
+
+  // A notification for "new message from X" links here as
+  // /app/messages?thread=<counterpartyId> - open that conversation on
+  // arrival instead of whatever happened to be first, then drop the param
+  // so it doesn't fight future manual thread switches.
+  useEffect(() => {
+    const wanted = searchParams.get("thread");
+    if (wanted && threads.some((t) => t.counterpartyId === wanted)) {
+      setActiveId(wanted);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("thread");
+        return next;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, threads]);
 
   const active = threads.find((t) => t.counterpartyId === activeId) ?? threads[0] ?? null;
 
@@ -110,6 +130,20 @@ export default function Messages() {
 
   function send() {
     if (!active || !body.trim()) return;
+
+    // Buynidify's whole value is that the relationship - and the deal -
+    // happens on the platform, where both sides are verified and Buynidify
+    // can step in if something goes wrong. A number, an email or "let's
+    // move to WhatsApp" is exactly the thing that lets people quietly walk
+    // off it, so the send is blocked (not just flagged) until it's removed -
+    // the same rule Upwork and similar platforms enforce on their chat.
+    const check = checkForOffPlatformContact(body);
+    if (check.blocked) {
+      setBlockedReasons(check.reasons);
+      return;
+    }
+    setBlockedReasons(null);
+
     sendMessage(
       {
         id: active.counterpartyId,
@@ -221,11 +255,21 @@ export default function Messages() {
                 ))}
               </div>
 
+              {blockedReasons && (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                  This message wasn't sent - it looks like it contains {blockedReasons.join(", ")}.
+                  For everyone's safety, contact details and other apps can't be shared here; keep
+                  the conversation on Buynidify and the team will help arrange next steps.
+                </p>
+              )}
               <div className="flex gap-2 border-t border-brand-border pt-3">
                 <input
                   type="text"
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={(e) => {
+                    setBody(e.target.value);
+                    if (blockedReasons) setBlockedReasons(null);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && send()}
                   placeholder="Type your message..."
                   className="flex-1 rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-ink outline-none focus:border-brand-blue"
@@ -284,7 +328,7 @@ export default function Messages() {
                 context={active?.context}
                 propertyHref={
                   <Link
-                    to={role === "tenant" ? "/app/platform-listings" : "/app/my-properties"}
+                    to={role === "tenant" ? "/listings" : "/app/my-properties"}
                     className="mt-1 inline-block text-[11px] font-semibold text-brand-blue hover:underline"
                   >
                     View property →

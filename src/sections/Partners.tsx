@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { partners, type Partner } from "../lib/content";
 
 // Modelled on the agaton.ai logo wall: an even grid of logos, all desaturated
@@ -50,6 +51,13 @@ export default function Partners() {
           <PartnerLogo key={partner.name} partner={partner} />
         ))}
       </div>
+
+      <p className="mt-10 text-center text-sm text-brand-muted">
+        Run a local service business?{" "}
+        <Link to="/partners" className="font-semibold text-brand-blue hover:underline">
+          Become a Buynidify partner →
+        </Link>
+      </p>
     </section>
   );
 }

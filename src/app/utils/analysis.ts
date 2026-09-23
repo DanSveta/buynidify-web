@@ -53,6 +53,7 @@ export function buildInvestorAnalysis(p: ImportedProperty): InvestorAnalysis {
 
   return {
     kind: "investor",
+    source: "demo",
     summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} presents a solid buy-to-let opportunity with estimated gross yields around ${grossYield.toFixed(1)}%.`,
     monthlyRent,
     grossYield,
@@ -87,6 +88,7 @@ export function buildBuyerAnalysis(p: ImportedProperty): BuyerAnalysis {
 
   return {
     kind: "buyer",
+    source: "demo",
     summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} could suit your budget and search criteria.`,
     deposit: Math.round(p.price * 0.1),
     upfrontCosts: estimateStampDuty(p.price) + 2500,

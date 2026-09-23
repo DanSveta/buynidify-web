@@ -165,9 +165,14 @@ function SectionTitle({ title, subtitle, to, link }: { title: string; subtitle?:
 function DemandCard({ demand, responded }: { demand: TenantDemandEntry; responded: boolean }) {
   const price = demand.targetPrice ? gbp.format(demand.targetPrice) : "Price on portal";
   return (
-    <article className="group overflow-hidden rounded-2xl border border-brand-border bg-white transition-all hover:-translate-y-1 hover:shadow-lg">
+    <a
+      href={`/property/${demand.id}?kind=demand`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block overflow-hidden rounded-2xl border border-brand-border bg-white transition-all hover:-translate-y-1 hover:shadow-lg"
+    >
       <div className="relative h-36 overflow-hidden bg-brand-surface">
-        <img src={propertyImage(demand.id, demand.propertyType, 700)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <img src={demand.imageUrl ?? propertyImage(demand.id, demand.propertyType, 700)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-brand-blue shadow-sm backdrop-blur">Tenant demand</span>
       </div>
       <div className="p-4">
@@ -179,13 +184,18 @@ function DemandCard({ demand, responded }: { demand: TenantDemandEntry; responde
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${responded ? "bg-brand-blue-light text-brand-blue" : "bg-brand-gold/20 text-brand-gold-dark"}`}>{responded ? "Request sent" : "New opportunity"}</span>
         </div>
       </div>
-    </article>
+    </a>
   );
 }
 
 function ListingSuggestion({ listing, saved }: { listing: InvestorListing; saved: boolean }) {
   return (
-    <article className="group overflow-hidden rounded-2xl border border-brand-border bg-white transition-all hover:-translate-y-1 hover:shadow-lg">
+    <a
+      href={`/property/${listing.id}?kind=listing`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block overflow-hidden rounded-2xl border border-brand-border bg-white transition-all hover:-translate-y-1 hover:shadow-lg"
+    >
       <div className="relative h-36 overflow-hidden bg-brand-surface">
         <img src={listing.imageUrl ?? propertyImage(listing.id, listing.type, 700)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-brand-blue shadow-sm backdrop-blur">From an investor</span>
@@ -199,7 +209,7 @@ function ListingSuggestion({ listing, saved }: { listing: InvestorListing; saved
           <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${saved ? "bg-brand-gold/20 text-brand-gold-dark" : "bg-brand-blue-light text-brand-blue"}`}><Icon name="heart" className="h-3 w-3" />{saved ? "Saved" : "Available"}</span>
         </div>
       </div>
-    </article>
+    </a>
   );
 }
 
@@ -286,7 +296,7 @@ function InvestorOverview() {
       </div>
 
       <section className="mt-8">
-        <SectionTitle title="Properties tenants already want" subtitle="Demand-led opportunities where a tenant is waiting for an investor." to="/app/platform-listings" link="Explore all demand" />
+        <SectionTitle title="Properties tenants already want" subtitle="Demand-led opportunities where a tenant is waiting for an investor." to="/listings" link="Explore all demand" />
         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {tenantDemand.slice(0, 3).map((demand) => <DemandCard key={demand.id} demand={demand} responded={hasInvestorResponded(demand.id)} />)}
         </div>
@@ -351,7 +361,7 @@ function TenantOverview() {
           <SectionTitle title="Your next steps" subtitle="Keep your home search moving." />
           <div className="mt-4 space-y-3">
             {investorResponses.length > 0 && <Link to="/app/matches" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-gold/20 text-brand-gold-dark"><Icon name="people" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Review investor interest</span><span className="block text-xs text-brand-muted">An investor may be ready to buy a home you requested.</span></span><span className="text-brand-blue">→</span></Link>}
-            <Link to="/app/platform-listings" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="property" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Browse investor opportunities</span><span className="block text-xs text-brand-muted">See homes investors are considering buying.</span></span><span className="text-brand-blue">→</span></Link>
+            <a href="/listings" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="property" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Browse investor opportunities</span><span className="block text-xs text-brand-muted">See homes investors are considering buying.</span></span><span className="text-brand-blue">↗</span></a>
             <Link to="/app/search" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="heart" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Add a home you found for sale</span><span className="block text-xs text-brand-muted">Ask the investor community to buy it for you to rent.</span></span><span className="text-brand-blue">→</span></Link>
           </div>
         </section>
@@ -371,7 +381,7 @@ function TenantOverview() {
       </div>
 
       <section className="mt-8">
-        <SectionTitle title="Homes that may interest you" subtitle="Properties investors have published and are looking to match with a tenant." to="/app/platform-listings" link="Browse all homes" />
+        <SectionTitle title="Homes that may interest you" subtitle="Properties investors have published and are looking to match with a tenant." to="/listings" link="Browse all homes" />
         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {investorListings.slice(0, 3).map((listing) => <ListingSuggestion key={listing.id} listing={listing} saved={favoriteIds.has(listing.id) || hasExpressedInterest(listing.id)} />)}
         </div>

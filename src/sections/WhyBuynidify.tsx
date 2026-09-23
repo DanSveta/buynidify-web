@@ -1,4 +1,4 @@
-import { ChartIcon, LockIcon, ShieldIcon, SupportIcon } from "../components/icons";
+import { ChartIcon, LockIcon, ShieldIcon, SupportIcon, ZapIcon } from "../components/icons";
 import { whyFeatures, type WhyFeature } from "../lib/content";
 
 const icons: Record<WhyFeature["icon"], React.ComponentType<{ className?: string }>> = {
@@ -6,6 +6,7 @@ const icons: Record<WhyFeature["icon"], React.ComponentType<{ className?: string
   chart: ChartIcon,
   lock: LockIcon,
   support: SupportIcon,
+  zap: ZapIcon,
 };
 
 export default function WhyBuynidify() {
@@ -31,7 +32,9 @@ export default function WhyBuynidify() {
             return (
               <div
                 key={feature.title}
-                className="group flex gap-4 rounded-2xl border border-brand-border bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-blue hover:shadow-xl"
+                className={`group flex gap-4 rounded-2xl border border-brand-border bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-blue hover:shadow-xl ${
+                  feature.icon === "zap" ? "sm:col-span-2" : ""
+                }`}
               >
                 <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue text-brand-gold transition-transform duration-200 group-hover:scale-110">
                   <Icon className="h-5 w-5" />

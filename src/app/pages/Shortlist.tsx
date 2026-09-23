@@ -39,7 +39,7 @@ export default function Shortlist() {
       {total === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
           Nothing saved yet.{" "}
-          <Link to="/app/platform-listings" className="font-semibold text-brand-blue hover:underline">
+          <Link to="/listings" className="font-semibold text-brand-blue hover:underline">
             Browse platform listings
           </Link>{" "}
           and tap the heart on anything worth keeping.

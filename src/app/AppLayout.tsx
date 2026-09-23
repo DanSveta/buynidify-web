@@ -8,7 +8,6 @@ import { useFavorites } from "./context/FavoritesContext";
 import { resolveSavedProperties } from "./utils/savedProperties";
 import PlanModal from "./components/PlanModal";
 import { useAuthGate } from "./context/AuthGateContext";
-import ThemeDock from "../components/ThemeDock";
 import TopBar from "./components/TopBar";
 
 type NavItem = {
@@ -182,7 +181,6 @@ export default function AppLayout() {
           { to: "/app/overview", label: "Overview" },
           { to: "/app/search", label: "Search Properties" },
           { to: "/app/my-properties", label: "My Properties" },
-          { to: "/app/platform-listings", label: "Platform listings" },
           { to: "/app/shortlist", label: "Shortlist", heart: savedCount > 0 },
           { to: "/app/matches", label: "Mutual Matches", badge: matchedCount },
           { to: "/app/deals", label: "Deal Tracker", badge: dealsInProgress },
@@ -193,7 +191,6 @@ export default function AppLayout() {
             { to: "/app/overview", label: "Overview" },
             { to: "/app/search", label: "Find a Home" },
             { to: "/app/my-properties", label: "My Properties" },
-            { to: "/app/platform-listings", label: "Platform listings" },
             { to: "/app/shortlist", label: "Saved Homes", heart: savedCount > 0 },
             { to: "/app/matches", label: "Matched!", badge: matchedCount },
             { to: "/app/deals", label: "Deal Tracker", badge: dealsInProgress },
@@ -202,9 +199,7 @@ export default function AppLayout() {
         : [{ to: "/app/b2b", label: "Company Dashboard" }];
 
   const secondaryNavItems: NavItem[] =
-    role === "corporate"
-      ? [{ to: "/app/platform-listings", label: "Platform listings" }]
-      : [{ to: "/app/relocate", label: "Relocate AI", highlight: true }];
+    role === "corporate" ? [] : [{ to: "/app/relocate", label: "Relocate AI", highlight: true }];
 
   return (
     // data-theme is set here rather than on <html> so dark mode covers the
@@ -268,7 +263,21 @@ export default function AppLayout() {
 
         <div className="my-4 border-t border-brand-border" />
 
-        <nav className="flex flex-col gap-1">
+        {/* Browsing lives outside the account now - the dashboard is only
+            for things that belong to you (deals, messages, your own
+            properties). This opens the public listings site in a new tab,
+            same as clicking a property card does. */}
+        <a
+          href="/listings"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-brand-muted transition-colors hover:bg-brand-surface hover:text-brand-ink"
+        >
+          <span>Browse all listings</span>
+          <span aria-hidden className="text-xs">↗</span>
+        </a>
+
+        <nav className="mt-1 flex flex-col gap-1">
           {secondaryNavItems.map((item) => (
             <NavLink
               key={item.to}
@@ -359,8 +368,6 @@ export default function AppLayout() {
       </div>
 
       {planOpen && <PlanModal onClose={() => setPlanOpen(false)} />}
-
-      <ThemeDock />
     </div>
   );
 }

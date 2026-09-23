@@ -7,6 +7,7 @@ import { usePersistedState } from "../utils/usePersistedState";
 import { initialsOf } from "../utils/greeting";
 import { useAuthGate } from "../context/AuthGateContext";
 import { avatarFor } from "../utils/avatars";
+import Avatar from "./Avatar";
 
 // Dashboard header: quick search, light/dark switch, messages, notifications
 // and the account menu. Everything in here is driven by real app state - the
@@ -122,7 +123,7 @@ function pagesFor(role: string): Hit[] {
   const common: Hit[] = [
     { label: "Overview", sub: "Page", to: "/app/overview" },
     { label: "Messages", sub: "Page", to: "/app/messages" },
-    { label: "Platform listings", sub: "Page", to: "/app/platform-listings" },
+    { label: "Platform listings", sub: "Page", to: "/listings" },
     { label: "Profile", sub: "Page", to: "/app/profile" },
     { label: "Relocate AI", sub: "Page", to: "/app/relocate" },
     { label: "Help & Support", sub: "Page", to: "/app/support" },
@@ -178,12 +179,12 @@ function QuickSearch() {
       ...investorListings.map((l) => ({
         label: l.address,
         sub: `${l.beds}-bed ${l.type.toLowerCase()} · ${l.city}`,
-        to: "/app/platform-listings",
+        to: `/property/${l.id}?kind=listing`,
       })),
       ...tenantDemand.map((d) => ({
         label: `${d.minBeds}-bed ${d.propertyType.toLowerCase()} in ${d.city}`,
         sub: "Tenant looking",
-        to: "/app/platform-listings",
+        to: `/property/${d.id}?kind=demand`,
       })),
     ];
     return all.filter((h) => `${h.label} ${h.sub}`.toLowerCase().includes(q)).slice(0, 7);
@@ -238,7 +239,29 @@ function QuickSearch() {
 
 /* --- notifications --------------------------------------------------------- */
 
-type Note = { id: string; title: string; body: string; to: string };
+// Who a notification is about, so the bell can show a face (or a clear
+// fallback mark) instead of text alone - "show the person" - and where
+// clicking it should actually land, deep-linked to the specific match,
+// conversation or deal rather than just the page it lives on.
+type Note = {
+  id: string;
+  title: string;
+  body: string;
+  to: string;
+  personName?: string;
+  personInitials?: string;
+  personPhotoUrl?: string;
+  /** Shown instead of a person avatar when this isn't about one specific
+   *  person (e.g. several tenants interested at once). */
+  icon?: string;
+};
+
+/** MatchEntry ids are `match-listing-<id>` / `match-demand-<id>` - the
+ *  underlying id is what Matches.tsx's rows are keyed on, so notifications
+ *  have to unwrap it to deep-link to the right row. */
+function connectionIdFromMatchId(matchId: string): string {
+  return matchId.replace(/^match-(listing|demand)-/, "");
+}
 
 /* --- top bar --------------------------------------------------------------- */
 
@@ -247,7 +270,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const { role, name, logout } = useRole();
   const { promptSignUp } = useAuthGate();
   const { dark, toggleDark } = useTheme();
-  const { threads, matches, investorListings, interestedTenantsFor, unreadThreadCount } =
+  const { threads, matches, investorListings, tenantDemand, interestedTenantsFor, hasInvestorResponded, unreadThreadCount } =
     useListings();
 
   const [openPanel, setOpenPanel] = useState<"bell" | "avatar" | null>(null);
@@ -266,26 +289,63 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
     const out: Note[] = [];
 
     matches.forEach((m) => {
+      // Whichever side isn't "You" is the actual person this match is with -
+      // a real name gets a face, the generic placeholder gets a handshake
+      // mark instead of a made-up avatar.
+      const counterpartLabel = m.investorLabel === "You" ? m.tenantLabel : m.investorLabel;
+      const hasRealName = counterpartLabel && counterpartLabel !== "You";
+      const connectionId = connectionIdFromMatchId(m.id);
       out.push({
         id: `match-${m.id}`,
-        title: "Mutual match",
+        title: hasRealName ? `Mutual match with ${counterpartLabel}` : "Mutual match",
         body: `${m.propertyAddress}, ${m.city}`,
-        to: "/app/matches",
+        to: `/app/matches?open=${encodeURIComponent(connectionId)}&tab=matched`,
+        personName: hasRealName ? counterpartLabel : undefined,
+        personInitials: hasRealName ? initialsOf(counterpartLabel) : undefined,
+        personPhotoUrl: hasRealName ? avatarFor(counterpartLabel) : undefined,
+        icon: hasRealName ? undefined : "🤝",
       });
     });
 
     if (role === "investor") {
       investorListings.forEach((l) => {
-        const n = interestedTenantsFor(l.id).length;
+        const interested = interestedTenantsFor(l.id);
+        const n = interested.length;
         if (n > 0) {
+          const first = interested[0];
           out.push({
             id: `interest-${l.id}-${n}`,
-            title: `${n} tenant${n === 1 ? "" : "s"} interested`,
+            title:
+              n === 1
+                ? `${first.name} is interested`
+                : `${first.name} and ${n - 1} other${n - 1 === 1 ? "" : "s"} interested`,
             body: l.address,
-            to: "/app/my-properties",
+            to: `/app/matches?open=${encodeURIComponent(l.id)}&tab=incoming`,
+            personName: n === 1 ? first.name : undefined,
+            personInitials: n === 1 ? first.initials : undefined,
+            personPhotoUrl: n === 1 ? avatarFor(first.name) : undefined,
+            icon: n === 1 ? undefined : "👥",
           });
         }
       });
+    }
+
+    // The tenant-side equivalent: an investor responding to a home you
+    // posted. Without this, publishing to investors had no way to tell you
+    // anything happened - the investor's own "tenant interested" bell above
+    // had no counterpart on this side of the platform.
+    if (role === "tenant") {
+      tenantDemand
+        .filter((d) => d.source === "imported" && hasInvestorResponded(d.id))
+        .forEach((d) => {
+          out.push({
+            id: `investor-interest-${d.id}`,
+            title: "An investor is interested",
+            body: `${d.minBeds === 0 ? "Studio" : `${d.minBeds}-bedroom`} ${d.propertyType.toLowerCase()} in ${d.city}`,
+            to: `/app/matches?open=${encodeURIComponent(d.id)}&tab=incoming`,
+            icon: "🏠",
+          });
+        });
     }
 
     threads.forEach((t) => {
@@ -295,13 +355,16 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
           id: `msg-${t.counterpartyId}-${last.id}`,
           title: `New message from ${t.counterpartyName}`,
           body: last.body,
-          to: "/app/messages",
+          to: `/app/messages?thread=${encodeURIComponent(t.counterpartyId)}`,
+          personName: t.counterpartyName,
+          personInitials: initialsOf(t.counterpartyName),
+          personPhotoUrl: avatarFor(t.counterpartyName),
         });
       }
     });
 
     return out.slice(0, 8);
-  }, [matches, threads, role, investorListings, interestedTenantsFor]);
+  }, [matches, threads, role, investorListings, interestedTenantsFor, tenantDemand, hasInvestorResponded]);
 
   const unread = notes.filter((n) => !readIds.includes(n.id));
 
@@ -396,13 +459,25 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
                         setOpenPanel(null);
                         navigate(n.to);
                       }}
-                      className="flex w-full gap-3 border-b border-brand-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-brand-surface"
+                      className="flex w-full items-start gap-3 border-b border-brand-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-brand-surface"
                     >
                       <span
-                        className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${
+                        className={`mt-2 h-2 w-2 flex-shrink-0 rounded-full ${
                           isUnread ? "bg-brand-cta" : "bg-brand-border"
                         }`}
                       />
+                      {n.personName ? (
+                        <Avatar
+                          name={n.personName}
+                          initials={n.personInitials ?? "?"}
+                          photoUrl={n.personPhotoUrl}
+                          size="sm"
+                        />
+                      ) : (
+                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-surface text-base">
+                          {n.icon ?? "🔔"}
+                        </span>
+                      )}
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-brand-ink">{n.title}</span>
                         <span className="block truncate text-xs text-brand-muted">{n.body}</span>

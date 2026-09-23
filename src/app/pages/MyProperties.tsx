@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import PropertyLinkImporter from "../components/PropertyLinkImporter";
 import { useRole } from "../context/RoleContext";
 import {
   useListings,
@@ -9,8 +8,9 @@ import {
 } from "../context/ListingsContext";
 import TenantProfileModal from "../components/TenantProfileModal";
 import PublishModal from "../components/PublishModal";
+import PublishDemandModal from "../components/PublishDemandModal";
 import AgreementTimeline from "../components/AgreementTimeline";
-import { buildInvestorAnalysis } from "../utils/analysis";
+import { buildInvestorAnalysis, buildBuyerAnalysis } from "../utils/analysis";
 import { propertyImage } from "../utils/propertyImages";
 import { useAuthGate } from "../context/AuthGateContext";
 import Avatar from "../components/Avatar";
@@ -645,15 +645,324 @@ function MyPropertiesInvestor() {
   );
 }
 
+type DemandStatus = "draft" | "analysed" | "live" | "interest";
+
+const demandStatusMeta: Record<DemandStatus, { label: string; className: string }> = {
+  draft: { label: "Not analysed", className: "bg-brand-surface text-brand-muted" },
+  analysed: { label: "Not published", className: "bg-brand-gold/20 text-brand-gold-dark" },
+  live: { label: "Live to investors", className: "bg-brand-blue-light text-brand-blue" },
+  interest: { label: "Investor interested", className: "bg-emerald-100 text-emerald-700" },
+};
+
+function demandStatusOf(p: ImportedProperty, responded: boolean): DemandStatus {
+  if (p.published && responded) return "interest";
+  if (p.published) return "live";
+  if (p.analysis) return "analysed";
+  return "draft";
+}
+
+function demandNextAction(status: DemandStatus): string | null {
+  switch (status) {
+    case "draft":
+      return "Run the AI analysis";
+    case "analysed":
+      return "Publish it to investors";
+    case "interest":
+      return "An investor is interested";
+    default:
+      return null;
+  }
+}
+
+const demandFilters = [
+  { id: "all", label: "All" },
+  { id: "action", label: "Action needed" },
+  { id: "draft", label: "Not published" },
+  { id: "live", label: "Live" },
+  { id: "interest", label: "With interest" },
+] as const;
+
+type DemandFilterId = (typeof demandFilters)[number]["id"];
+
+function TenantPropertyCard({ property }: { property: ImportedProperty }) {
+  const { updateImportedProperty, removeImportedProperty, hasInvestorResponded } = useListings();
+  const { requireAccount } = useAuthGate();
+  const [open, setOpen] = useState(false);
+  const [analysing, setAnalysing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const responded = hasInvestorResponded(property.id);
+  const status = demandStatusOf(property, responded);
+  const action = demandNextAction(status);
+  const analysis = property.analysis?.kind === "buyer" ? property.analysis : null;
+  const rent = property.published?.rent;
+
+  function runAnalysis() {
+    setAnalysing(true);
+    window.setTimeout(() => {
+      updateImportedProperty(property.id, {
+        analysis: buildBuyerAnalysis(property),
+        showAnalysis: true,
+      });
+      setAnalysing(false);
+      setOpen(true);
+    }, 700);
+  }
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-brand-border bg-white">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+        <img
+          src={property.imageUrl ?? propertyImage(property.id, property.type)}
+          alt={property.type}
+          loading="lazy"
+          className="h-28 w-full flex-shrink-0 rounded-xl object-cover sm:h-20 sm:w-28"
+        />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${demandStatusMeta[status].className}`}
+            >
+              {demandStatusMeta[status].label}
+            </span>
+            <span className="text-[11px] text-brand-muted">via {property.portal}</span>
+          </div>
+          <h3 className="mt-1 font-display text-base font-semibold text-brand-ink">
+            {property.title}
+          </h3>
+          <p className="text-sm text-brand-muted">
+            {property.location} · {gbp.format(property.price)}
+            {rent ? ` · target ${gbp.format(rent)}/mo` : ""}
+          </p>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {action && (
+            <span className="hidden text-[11px] font-semibold text-brand-gold-dark lg:block">
+              {action}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="rounded-lg border border-brand-border px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+          >
+            {open ? "Hide details" : "Details"}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-brand-border p-5">
+          {/* Key figures */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Metric label="Listed price" value={gbp.format(property.price)} />
+            <Metric label="Bedrooms" value={property.beds === 0 ? "Studio" : `${property.beds}`} />
+            <Metric label="Type" value={property.type} />
+            <Metric label="Target rent" value={rent ? `${gbp.format(rent)}/mo` : "Not set"} />
+            {property.published && (
+              <>
+                <Metric label="Move in from" value={property.published.availableFrom || "Now"} />
+                <Metric label="Length of stay" value={property.published.minTenancy} />
+              </>
+            )}
+          </div>
+
+          {property.published?.householdType && (
+            <p className="mt-3 text-xs text-brand-muted">
+              <span className="font-semibold text-brand-ink">Household:</span>{" "}
+              {property.published.householdType}
+              {property.published.occupants
+                ? ` · ${property.published.occupants} ${property.published.occupants === 1 ? "person" : "people"}`
+                : ""}
+              {` · ${property.published.pets ? "has pets" : "no pets"}`}
+              {` · ${property.published.smoker ? "smoker" : "non-smoker"}`}
+            </p>
+          )}
+          {property.published?.notes && (
+            <p className="mt-1 text-xs italic text-brand-muted">"{property.published.notes}"</p>
+          )}
+
+          {/* AI analysis */}
+          <div className="mt-5">
+            <h4 className="text-xs font-bold uppercase tracking-wide text-brand-muted">
+              AI analysis
+            </h4>
+            {analysis ? (
+              <div className="mt-2 rounded-xl bg-brand-surface p-4">
+                <p className="text-sm text-brand-ink">{analysis.summary}</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-700">In its favour</p>
+                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
+                      {analysis.positives.map((i) => (
+                        <li key={i}>+ {i}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700">Check before you commit</p>
+                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
+                      {analysis.consider.map((i) => (
+                        <li key={i}>− {i}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-brand-blue">Suggested</p>
+                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
+                      {analysis.suggestions.map((i) => (
+                        <li key={i}>→ {i}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] italic text-brand-muted">
+                  An estimate only, not financial or legal advice.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-brand-surface p-4">
+                <p className="flex-1 text-sm text-brand-muted">
+                  Not analysed yet. The analysis estimates affordability, deposit and upfront costs.
+                </p>
+                <button
+                  type="button"
+                  onClick={runAnalysis}
+                  disabled={analysing}
+                  className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark disabled:opacity-60"
+                >
+                  {analysing ? "Analysing..." : "Run AI analysis"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Investor interest */}
+          <div className="mt-5">
+            <h4 className="text-xs font-bold uppercase tracking-wide text-brand-muted">
+              Investor interest
+            </h4>
+            {!property.published ? (
+              <p className="mt-2 rounded-xl bg-brand-surface p-4 text-sm text-brand-muted">
+                Publish this to investors and interest will appear here.
+              </p>
+            ) : responded ? (
+              <p className="mt-2 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                An investor has responded to this home. Check Messages or Mutual Matches to follow up.
+              </p>
+            ) : (
+              <p className="mt-2 rounded-xl bg-brand-surface p-4 text-sm text-brand-muted">
+                Live to investors, no response yet.
+              </p>
+            )}
+          </div>
+
+          {/* Property actions */}
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-brand-border pt-4">
+            <button
+              type="button"
+              onClick={() =>
+                requireAccount({
+                  title: "Publish to investors",
+                  message:
+                    "Publishing puts your search in front of real investors, so it needs a verified account.",
+                  action: () => setPublishing(true),
+                })
+              }
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                property.published
+                  ? "border border-brand-border text-brand-ink hover:border-brand-blue hover:text-brand-blue"
+                  : "bg-brand-blue text-white hover:bg-brand-blue-dark"
+              }`}
+            >
+              {property.published ? "Update terms" : "Publish to investors"}
+            </button>
+            <a
+              href={property.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-brand-border px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+            >
+              View on {property.portal} ↗
+            </a>
+            <button
+              type="button"
+              onClick={() => removeImportedProperty(property.id)}
+              className="ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-brand-muted transition-colors hover:text-red-600"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+
+      {publishing && (
+        <PublishDemandModal
+          property={property}
+          defaultRent={Math.round((property.price * 0.045) / 12 / 5) * 5}
+          existing={property.published}
+          onCancel={() => setPublishing(false)}
+          onPublish={(details) => {
+            updateImportedProperty(property.id, { published: details });
+            setPublishing(false);
+            setOpen(true);
+          }}
+        />
+      )}
+    </article>
+  );
+}
+
 function MyPropertiesTenant() {
-  // Current tenancy (if a lease is signed) + anything moving through a deal
-  // right now, plus the paste-a-link + AI analysis flow (same as the live
-  // product's My Properties page). Reads the same `agreement` an investor
-  // starts from their side, filtered to deals where you're the tenant on
-  // it - not a disconnected mock list that never matched what actually
-  // happened in the app.
-  const { namesByRole } = useRole();
-  const { importedProperties, advanceAgreement } = useListings();
+  // Same shape as the investor's My Properties: homes you've found and are
+  // proposing to investors, each with a status badge, a Details toggle, and
+  // a publish flow - but every field reframed from the tenant's point of
+  // view (target rent, move-in date, household). Agreements in progress
+  // (someone actually committed to buy for you) are a separate, later stage
+  // and stay in their own section below, same as before.
+  const { role, namesByRole } = useRole();
+  const { importedProperties, advanceAgreement, hasInvestorResponded } = useListings();
+  const [filter, setFilter] = useState<DemandFilterId>("all");
+  const searchPath = role ? "/app/search" : "/search";
+
+  const mine = useMemo(
+    () => importedProperties.filter((p) => p.owner === (role ? "tenant" : "guest")),
+    [importedProperties, role]
+  );
+
+  const withStatus = useMemo(
+    () =>
+      mine.map((p) => {
+        const responded = hasInvestorResponded(p.id);
+        return { property: p, status: demandStatusOf(p, responded) };
+      }),
+    [mine, hasInvestorResponded]
+  );
+
+  const counts = {
+    all: withStatus.length,
+    action: withStatus.filter((x) => demandNextAction(x.status)).length,
+    draft: withStatus.filter((x) => !x.property.published).length,
+    live: withStatus.filter((x) => !!x.property.published).length,
+    interest: withStatus.filter((x) => x.status === "interest").length,
+  };
+
+  const shown = withStatus.filter((x) => {
+    switch (filter) {
+      case "action":
+        return !!demandNextAction(x.status);
+      case "draft":
+        return !x.property.published;
+      case "live":
+        return !!x.property.published;
+      case "interest":
+        return x.status === "interest";
+      default:
+        return true;
+    }
+  });
 
   const myDeals = useMemo(
     () => importedProperties.filter((p) => p.agreement && p.agreement.tenantId === "you"),
@@ -664,19 +973,74 @@ function MyPropertiesTenant() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">My Properties</h1>
-      <p className="mt-1 text-brand-muted">
-        The homes you've asked investors to buy, and anything moving through a deal right now.
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">
+        My Properties
+      </h1>
+      <p className="mt-1 max-w-2xl text-brand-muted">
+        Every home you've added, from first link to signed tenancy. Run the analysis, publish to
+        investors, then see who's interested in buying it for you.
       </p>
 
       <Link
-        to="/app/search"
+        to={searchPath}
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
         + Add a home
       </Link>
 
-      <PropertyLinkImporter listOnly />
+      {/* Pipeline summary */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Metric label="Homes" value={`${counts.all}`} />
+        <Metric label="Live to investors" value={`${counts.live}`} />
+        <Metric label="With interest" value={`${counts.interest}`} />
+        <Metric label="Deals in progress" value={`${inProgress.length}`} />
+      </div>
+
+      {/* Filters */}
+      <nav className="mt-5 flex flex-wrap gap-2">
+        {demandFilters.map((f) => {
+          const active = filter === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                active
+                  ? "border-brand-blue bg-brand-blue text-white"
+                  : "border-brand-border bg-white text-brand-muted hover:border-brand-blue hover:text-brand-blue"
+              }`}
+            >
+              {f.label}
+              <span className={`ml-1.5 ${active ? "text-white/70" : "text-brand-muted"}`}>
+                {counts[f.id]}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {shown.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
+          {mine.length === 0 ? (
+            <>
+              No homes yet. Add one from{" "}
+              <Link to={searchPath} className="font-semibold text-brand-blue hover:underline">
+                Search Properties
+              </Link>{" "}
+              by pasting a Rightmove, Zoopla or OnTheMarket link.
+            </>
+          ) : (
+            "Nothing in this view right now."
+          )}
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col gap-4">
+          {shown.map(({ property }) => (
+            <TenantPropertyCard key={property.id} property={property} />
+          ))}
+        </div>
+      )}
 
       {currentHome && (
         <div className="mt-8 rounded-2xl border border-brand-blue bg-brand-blue-light p-5">
@@ -687,24 +1051,22 @@ function MyPropertiesTenant() {
       )}
 
       {inProgress.length > 0 && (
-        <div className="mt-6 flex flex-col gap-4">
-          {inProgress.map((p) => (
-            <AgreementTimeline
-              key={p.id}
-              agreement={p.agreement!}
-              investor={selfProfile(`investor-${p.id}`, namesByRole.investor, "Investor")}
-              tenant={selfProfile(`tenant-${p.id}`, namesByRole.tenant, "Tenant")}
-              viewerRole="tenant"
-              onAdvance={(by) => advanceAgreement(p.id, by)}
-            />
-          ))}
-        </div>
-      )}
-
-      {myDeals.length === 0 && (
-        <div className="mt-6 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
-          Nothing in progress yet. Once an investor agrees to proceed with your interest, it shows up
-          here.
+        <div className="mt-6">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-brand-muted">
+            Deals in progress
+          </h2>
+          <div className="mt-2 flex flex-col gap-4">
+            {inProgress.map((p) => (
+              <AgreementTimeline
+                key={p.id}
+                agreement={p.agreement!}
+                investor={selfProfile(`investor-${p.id}`, namesByRole.investor, "Investor")}
+                tenant={selfProfile(`tenant-${p.id}`, namesByRole.tenant, "Tenant")}
+                viewerRole="tenant"
+                onAdvance={(by) => advanceAgreement(p.id, by)}
+              />
+            ))}
+          </div>
         </div>
       )}
 

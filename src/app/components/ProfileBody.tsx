@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { PartyProfile } from "../utils/profiles";
 
 // The contents of a profile: identity, verification, details. Shared by the
@@ -36,6 +37,7 @@ export function ProfileHeader({
 }) {
   const allVerified =
     profile.verified.idCheck && profile.verified.referencing && profile.verified.funds;
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   return (
     <div className="flex items-center gap-3">
@@ -44,8 +46,13 @@ export function ProfileHeader({
           size === "lg" ? "h-14 w-14 text-base" : "h-12 w-12 text-sm"
         }`}
       >
-        {profile.photoUrl ? (
-          <img src={profile.photoUrl} alt="" className="h-full w-full object-cover" />
+        {profile.photoUrl && !photoFailed ? (
+          <img
+            src={profile.photoUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setPhotoFailed(true)}
+          />
         ) : (
           profile.initials
         )}

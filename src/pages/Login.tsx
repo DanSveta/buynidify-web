@@ -19,7 +19,7 @@ const scenarios: {
     title: "Investor",
     description:
       "AI yield analysis, portfolio matching, and pre-vetted tenants.",
-    destination: "/app/marketplace",
+    destination: "/app/overview",
     icon: InvestorIcon,
   },
   {
@@ -27,7 +27,7 @@ const scenarios: {
     title: "Tenant",
     description:
       "Find your home. Smart search, affordability, and a transparent journey.",
-    destination: "/app/marketplace",
+    destination: "/app/overview",
     icon: TenantIcon,
   },
   {

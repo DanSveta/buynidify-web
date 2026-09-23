@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useRole } from "../context/RoleContext";
 import {
   agoLabel,
@@ -257,6 +257,7 @@ export default function Matches() {
   const { role, namesByRole } = useRole();
   const isTenant = role === "tenant";
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     connections,
     investorListings,
@@ -370,7 +371,7 @@ export default function Matches() {
             priceLabel: demand.targetPrice ? `${gbp.format(demand.targetPrice)} to buy` : "Price on portal",
             beds: demand.minBeds,
             propertyType: demand.propertyType,
-            imageUrl: propertyImage(demand.id, demand.propertyType),
+            imageUrl: demand.imageUrl ?? propertyImage(demand.id, demand.propertyType),
             sourceUrl: demand.url,
             counterpartyId: `tenant-${demand.id}`,
             counterpartyName: profile.name,
@@ -400,6 +401,25 @@ export default function Matches() {
       r.yours &&
       (isTenant ? r.connection.by === "investor" : r.connection.by === "tenant")
   );
+
+  // A notification (a new match, someone interested) links here as
+  // /app/matches?open=<connectionId> - find that row once it's available and
+  // open it straight away, in whichever tab it actually lives in, instead of
+  // making you go hunt for it.
+  useEffect(() => {
+    const wanted = searchParams.get("open");
+    if (!wanted) return;
+    const row = rows.find((r) => r.connection.id === wanted);
+    if (!row) return;
+    setTab(matched.includes(row) ? "matched" : incoming.includes(row) ? "incoming" : "outgoing");
+    setOpenRow(row);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("open");
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, searchParams]);
 
   // Real deals already under way - a matched connection becomes one once the
   // investor requests to proceed with a tenant, which is when it gets an
@@ -443,6 +463,22 @@ export default function Matches() {
     };
     return [...real, example];
   }, [realDeals, namesByRole, advanceAgreement]);
+
+  // A "deal moved forward" notification links here as
+  // /app/matches?deal=<propertyId> - open that deal card directly.
+  useEffect(() => {
+    const wanted = searchParams.get("deal");
+    if (!wanted) return;
+    const deal = dealCards.find((d) => d.id === wanted);
+    if (!deal) return;
+    setOpenDeal(deal);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("deal");
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealCards, searchParams]);
 
   // When an already-matched connection's property has moved into a real
   // agreement, the match panel shows its live timeline instead of sending

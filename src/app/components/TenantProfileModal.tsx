@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useListings, type InterestedTenant } from "../context/ListingsContext";
 import { profileFromInterestedTenant } from "../utils/profiles";
 import { useAuthGate } from "../context/AuthGateContext";
+import { checkForOffPlatformContact } from "../utils/contactFilter";
+import { avatarFor } from "../utils/avatars";
+import Avatar from "./Avatar";
 
 // Opened from an interested-tenant row. Shows who they are and lets the
 // investor start a conversation without leaving the page - the message lands
@@ -26,11 +29,18 @@ export default function TenantProfileModal({
   const { requireAccount } = useAuthGate();
   const [body, setBody] = useState("");
   const [sent, setSent] = useState(false);
+  const [blockedReasons, setBlockedReasons] = useState<string[] | null>(null);
   const threadId = `investor-${propertyId}`;
   const thread = threadFor(threadId);
 
   function send() {
     if (!body.trim()) return;
+    const check = checkForOffPlatformContact(body);
+    if (check.blocked) {
+      setBlockedReasons(check.reasons);
+      return;
+    }
+    setBlockedReasons(null);
     requireAccount({
       title: "Message this tenant",
       message:
@@ -64,9 +74,7 @@ export default function TenantProfileModal({
       <div className="w-full max-w-md rounded-2xl border border-brand-border bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-sm font-bold text-white">
-              {tenant.initials}
-            </span>
+            <Avatar name={tenant.name} initials={tenant.initials} photoUrl={avatarFor(tenant.name)} size="md" />
             <div>
               <h3 className="font-display text-lg font-semibold text-brand-ink">{tenant.name}</h3>
               <p className="text-xs text-brand-muted">{tenant.occupation}</p>
@@ -113,12 +121,19 @@ export default function TenantProfileModal({
             onChange={(e) => {
               setBody(e.target.value);
               setSent(false);
+              if (blockedReasons) setBlockedReasons(null);
             }}
             rows={3}
             placeholder="Hi, thanks for your interest. Happy to answer anything about the property or the timings."
             className="mt-1 w-full resize-none rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-ink outline-none focus:border-brand-blue"
           />
         </label>
+        {blockedReasons && (
+          <p className="mt-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            Not sent - this looks like it contains {blockedReasons.join(", ")}. Contact details and
+            other apps can't be shared here; keep it on Buynidify.
+          </p>
+        )}
         {sent && <p className="mt-1 text-xs font-medium text-emerald-700">Message sent</p>}
 
         <div className="mt-4 flex gap-3">

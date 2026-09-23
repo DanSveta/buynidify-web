@@ -1,5 +1,6 @@
+import { Link } from "react-router-dom";
 import { CompassIcon, HandshakeIcon, VrIcon } from "../components/icons";
-import { steps, type Step } from "../lib/content";
+import { steps, serviceCategories, type Step } from "../lib/content";
 // Animation experiments are intentionally disabled for now.
 // Uncomment this import and the component below when they are ready to ship.
 // import HowItWorksShowcase from "./HowItWorksShowcase";
@@ -54,6 +55,49 @@ export default function HowItWorks() {
       </div>
 
       {/* <HowItWorksShowcase /> */}
+
+      {/* Fully automated is the pitch for a busy investor: nothing here
+          requires being present, and every step is done through the
+          platform rather than chased over email or phone. */}
+      <div className="mt-14 rounded-3xl border border-brand-border bg-brand-ink p-8 text-center sm:p-10">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-gold">
+          Built for busy investors
+        </p>
+        <h3 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          Fully automated. No need to be present.
+        </h3>
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-white/70">
+          From the first AI analysis to a tenant moving in, everything runs through the platform -
+          matching, terms, deposit, paperwork and the services below. You approve each step online;
+          Buynidify's team and AI agent do the coordinating, wherever you are.
+        </p>
+      </div>
+
+      {/* The concierge side - what Buynidify actually coordinates once a
+          deal is moving, and where the new Partners programme feeds in. */}
+      <div className="mt-10">
+        <h3 className="text-center font-display text-xl font-semibold text-brand-ink">
+          Services, coordinated for you
+        </h3>
+        <p className="mx-auto mt-2 max-w-xl text-center text-sm text-brand-muted">
+          Insurance, legal, cleaning, removals, furnishing and maintenance - Buynidify's network of
+          vetted local partners handles it, arranged automatically through the platform.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {serviceCategories.map((s) => (
+            <div key={s.title} className="rounded-2xl border border-brand-border bg-white p-4">
+              <p className="text-sm font-semibold text-brand-ink">{s.title}</p>
+              <p className="mt-0.5 text-xs text-brand-muted">{s.description}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-center text-xs text-brand-muted">
+          Run one of these businesses?{" "}
+          <Link to="/partners" className="font-semibold text-brand-blue hover:underline">
+            Become a Buynidify partner →
+          </Link>
+        </p>
+      </div>
     </section>
   );
 }

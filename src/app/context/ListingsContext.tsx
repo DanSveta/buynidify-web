@@ -133,6 +133,18 @@ export type TenantDemandEntry = {
   seedInterestedTenants: number; // pre-existing count, only meaningful for seed entries
   targetRentPerMonth?: number; // seed entries (legacy rent-demand content)
   targetPrice?: number; // imported entries (sale, matches the rest of the app)
+  /** When the tenant wants to move in. Set at publish time - see
+   *  PublishDetails.availableFrom, which does double duty as "move-in date"
+   *  on this side of the platform. */
+  moveInDate?: string;
+  /** A short, investor-facing description of who's moving in - household
+   *  type, headcount, pets, smoking - the tenant's equivalent of an
+   *  investor's "who would you let to". Composed at publish time. */
+  household?: string;
+  /** The listing's own photo, when the pasted link had one. Without this, an
+   *  imported home always fell back to a generated stock photo instead of
+   *  the real one, even though investor listings carried theirs through. */
+  imageUrl?: string;
 };
 
 export type Message = {
@@ -249,6 +261,9 @@ export function agoLabel(iso: string): string {
 // persist across a reload or a role switch.
 export type InvestorAnalysis = {
   kind: "investor";
+  /** Whether this came from a real AI call (once Véta's API key is wired
+   *  up) or the built-in demo estimate used when no key is configured. */
+  source?: "ai" | "demo";
   summary: string;
   monthlyRent: number;
   grossYield: number;
@@ -264,6 +279,9 @@ export type InvestorAnalysis = {
 
 export type BuyerAnalysis = {
   kind: "buyer";
+  /** Whether this came from a real AI call (once Véta's API key is wired
+   *  up) or the built-in demo estimate used when no key is configured. */
+  source?: "ai" | "demo";
   summary: string;
   deposit: number;
   upfrontCosts: number;
@@ -282,9 +300,32 @@ export type PublishDetails = {
   availableFrom: string;
   minTenancy: string;
   notes: string;
-  /** Who the investor is happy to let to - chosen at publish time. */
+  /** Who the investor is happy to let to - chosen at publish time. Left
+   *  empty ([]) for a tenant's own publish - see the household fields below
+   *  for the tenant-side equivalent. */
   accepts: string[];
+  /** Tenant-only, set when a tenant publishes their own search: household
+   *  type (e.g. "Family with children"), headcount, pets, smoking. Investor
+   *  publishes leave these undefined. */
+  householdType?: string;
+  occupants?: number;
+  pets?: boolean;
+  smoker?: boolean;
 };
+
+/** Turns a tenant's published household fields into one short, investor-
+ *  facing line, e.g. "Family with children · 3 people · No pets · Non-smoker".
+ *  Returns undefined when nothing's been published yet. */
+function householdSummary(published: PublishDetails | null | undefined): string | undefined {
+  if (!published || !published.householdType) return undefined;
+  const parts = [published.householdType];
+  if (published.occupants) {
+    parts.push(`${published.occupants} ${published.occupants === 1 ? "person" : "people"}`);
+  }
+  parts.push(published.pets ? "Has pets" : "No pets");
+  parts.push(published.smoker ? "Smoker" : "Non-smoker");
+  return parts.join(" · ");
+}
 
 /** The shared journey from PRODUCT.md section 14. The investor does NOT own
  *  the property yet: the tenant's commitment deposit is what gives them the
@@ -632,8 +673,11 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   // marketplace is a view of it.
   const investorListings = useMemo<InvestorListing[]>(
     () => [
+      // Only published properties are visible here - an unpublished draft is
+      // still being set up and belongs in My Properties, not on the public
+      // marketplace.
       ...safeImportedProperties
-        .filter((p) => p.owner === "investor")
+        .filter((p) => p.owner === "investor" && p.published)
         .map((p) => ({
           id: p.id,
           source: "imported" as const,
@@ -659,7 +703,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const tenantDemand = useMemo<TenantDemandEntry[]>(
     () => [
       ...safeImportedProperties
-        .filter((p) => p.owner === "tenant")
+        .filter((p) => p.owner === "tenant" && p.published)
         .map((p) => ({
           id: p.id,
           source: "imported" as const,
@@ -671,6 +715,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           addedDaysAgo: 0,
           seedInterestedTenants: 0,
           targetPrice: p.price,
+          targetRentPerMonth: p.published?.rent,
+          moveInDate: p.published?.availableFrom,
+          household: householdSummary(p.published),
+          imageUrl: p.imageUrl,
         })),
       ...seedTenantDemand,
     ],

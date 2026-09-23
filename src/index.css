@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Hides the scrollbar on a horizontally-scrolling row (testimonials,
+   partner logos) while leaving it fully scrollable by drag/swipe/wheel -
+   Tailwind v4 has no built-in utility for this. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @theme {
   /* Brand palette — blue & gold (v1). Swap these later without touching components. */
   --color-brand-blue: #00529f;

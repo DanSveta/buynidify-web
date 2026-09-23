@@ -36,8 +36,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [dark, setDark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(DARK_KEY) === "1";
+    if (typeof window === "undefined") return true;
+    // Dark is the product's real look now, not an opt-in preview - default
+    // on unless someone has explicitly switched it off before.
+    const stored = window.localStorage.getItem(DARK_KEY);
+    return stored === null ? true : stored === "1";
   });
 
   useEffect(() => {
