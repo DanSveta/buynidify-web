@@ -65,11 +65,11 @@ export default function ChooseYourJourneyShowcaseCompact() {
                       <TabIcon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={`block text-sm font-semibold ${isActive ? "text-white" : "text-brand-ink"}`}>
+                      <span className={`block text-base font-semibold ${isActive ? "text-white" : "text-brand-ink"}`}>
                         {card.title}
                       </span>
                       {isActive && (
-                        <span className="mt-0.5 block text-xs text-white/60">{card.tag}</span>
+                        <span className="mt-0.5 block text-sm text-white/60">{card.tag}</span>
                       )}
                     </span>
                   </button>
@@ -77,12 +77,12 @@ export default function ChooseYourJourneyShowcaseCompact() {
               })}
             </div>
 
-            <p className="mt-5 text-sm leading-relaxed text-brand-muted">{active.description}</p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
+            <p className="mt-5 text-base leading-relaxed text-brand-muted">{active.description}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
               {active.highlights.map((h) => (
                 <span
                   key={h}
-                  className="rounded-full bg-brand-blue-light px-2.5 py-1 text-[11px] font-medium text-brand-blue"
+                  className="rounded-full bg-brand-blue-light px-3 py-1.5 text-sm font-medium text-brand-blue"
                 >
                   {h}
                 </span>

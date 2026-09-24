@@ -12,8 +12,10 @@ import PublishDemandModal from "../components/PublishDemandModal";
 import AgreementTimeline from "../components/AgreementTimeline";
 import { buildInvestorAnalysis, buildBuyerAnalysis } from "../utils/analysis";
 import { runAiAnalysis } from "../utils/aiAnalysis";
-import { AIAnalysisCard, type AnalysisMetric } from "../components/AIAnalysisCard";
+import { PurchaseAnalysisCard } from "../components/PurchaseAnalysisCard";
+import type { AnalysisMetric } from "../components/AIAnalysisCard";
 import { suggestedRent, marketFor } from "../../data/ukMarketData";
+import { propertyDetailsFor } from "../utils/propertyDetails";
 import { propertyImage } from "../utils/propertyImages";
 import { useAuthGate } from "../context/AuthGateContext";
 import Avatar from "../components/Avatar";
@@ -317,20 +319,20 @@ function PropertyCard({
             </h4>
             {analysis ? (
               <div className="mt-2">
-                <AIAnalysisCard
+                <PurchaseAnalysisCard
                   summary={analysis.summary}
                   source={analysis.source ?? "demo"}
-                  marketNote={`${property.location}: ${marketFor(property.location).summary}`}
-                  metrics={
+                  price={property.price}
+                  monthlyRent={analysis.monthlyRent}
+                  sqft={propertyDetailsFor(property.id, property.beds, property.type).sqft}
+                  cityLabel={property.location}
+                  marketYieldRange={marketFor(property.location).yieldRange}
+                  marketSummary={marketFor(property.location).summary}
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                  otherMetrics={
                     [
-                      {
-                        key: "rent",
-                        label: "Suggested monthly rent",
-                        value: `${gbp.format(analysis.monthlyRent)}/mo`,
-                        icon: "money",
-                        featured: true,
-                      },
-                      { key: "gross", label: "Gross yield", value: `${analysis.grossYield.toFixed(1)}%`, icon: "trend" },
                       { key: "net", label: "Net yield", value: `${analysis.netYield.toFixed(1)}%`, icon: "scale" },
                       { key: "loc", label: "Location score", value: `${analysis.locationScore}/10`, icon: "pin" },
                       { key: "demand", label: "Rental demand", value: analysis.rentalDemand, icon: "users" },
@@ -338,9 +340,6 @@ function PropertyCard({
                       { key: "profile", label: "Tenant profile", value: analysis.tenantProfile, icon: "compass" },
                     ] satisfies AnalysisMetric[]
                   }
-                  positives={analysis.positives}
-                  consider={analysis.consider}
-                  suggestions={analysis.suggestions}
                 />
               </div>
             ) : (
@@ -788,19 +787,20 @@ function TenantPropertyCard({ property }: { property: ImportedProperty }) {
             </h4>
             {analysis ? (
               <div className="mt-2">
-                <AIAnalysisCard
+                <PurchaseAnalysisCard
                   summary={analysis.summary}
                   source={analysis.source ?? "demo"}
-                  marketNote={`${property.location}: ${marketFor(property.location).summary}`}
-                  metrics={
+                  price={property.price}
+                  monthlyRent={analysis.estimatedMonthlyRent}
+                  sqft={propertyDetailsFor(property.id, property.beds, property.type).sqft}
+                  cityLabel={property.location}
+                  marketYieldRange={marketFor(property.location).yieldRange}
+                  marketSummary={marketFor(property.location).summary}
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                  otherMetrics={
                     [
-                      {
-                        key: "rent",
-                        label: "Suggested monthly rent",
-                        value: `${gbp.format(analysis.estimatedMonthlyRent)}/mo`,
-                        icon: "money",
-                        featured: true,
-                      },
                       { key: "deposit", label: "Est. deposit", value: gbp.format(analysis.deposit), icon: "wallet" },
                       { key: "upfront", label: "Upfront costs", value: gbp.format(analysis.upfrontCosts), icon: "scale" },
                       { key: "commute", label: "Commute", value: `${analysis.commuteScore}/10`, icon: "compass" },
@@ -808,9 +808,6 @@ function TenantPropertyCard({ property }: { property: ImportedProperty }) {
                       { key: "value", label: "Value for money", value: analysis.valueForMoney, icon: "trend" },
                     ] satisfies AnalysisMetric[]
                   }
-                  positives={analysis.positives}
-                  consider={analysis.consider}
-                  suggestions={analysis.suggestions}
                 />
               </div>
             ) : (

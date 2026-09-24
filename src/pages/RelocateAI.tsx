@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { marketFor } from "../data/ukMarketData";
 import { getRelocateReply, visaGuidanceFor, type ChatTurn } from "../lib/relocateAIEngine";
+import { homesFor, type RelocateHome } from "../lib/relocateHomes";
+import { documentsFor, LOCAL_SERVICES } from "../lib/relocateExtras";
+import RelocateVoiceModal from "./RelocateVoiceModal";
 
 // Relocate AI - deliberately built and dressed as its OWN product, not
 // another page of Buynidify. No shared header, no nav links, no "back to
@@ -12,7 +15,7 @@ import { getRelocateReply, visaGuidanceFor, type ChatTurn } from "../lib/relocat
 
 type Purpose = "work" | "study" | "family" | "eu" | "other";
 
-type Step = "name" | "origin" | "destination" | "purpose" | "chat";
+type Step = "name" | "origin" | "destination" | "purpose" | "homes" | "chat";
 
 const purposeOptions: { id: Purpose; label: string; blurb: string }[] = [
   { id: "work", label: "A job", blurb: "Moving for work" },
@@ -58,6 +61,11 @@ export default function RelocateAI() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [aiPowered, setAiPowered] = useState(false);
+  const [expandedHome, setExpandedHome] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [shortlist, setShortlist] = useState<string[]>([]);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
   const [messages, setMessages] = useState<ChatTurn[]>([
     {
       role: "assistant",
@@ -110,8 +118,39 @@ export default function RelocateAI() {
     const costLine = market
       ? ` For reference, a 1-bed in ${destination} typically runs £${market.rentByBeds[1][0].toLocaleString()}-£${market.rentByBeds[1][1].toLocaleString()}/month.`
       : "";
-    pushAssistant(`${guidance}${costLine}\n\nFrom here, ask me anything - documents, timeline, specific areas in ${destination || "your city"}, cost of living, whatever's on your mind.`);
+    pushAssistant(`${guidance}${costLine}\n\nWhile that settles, here are a few homes in ${destination || "your city"} worth a look, with a quick AI read on how well each fits.`);
+    setStep("homes");
+  }
+
+  function continueToChat() {
+    pushAssistant(`Good starting point. From here, ask me anything - documents, timeline, specific areas in ${destination || "your city"}, cost of living, whatever's on your mind. You can also try the voice demo below to see how a live translated call with a landlord would work.`);
     setStep("chat");
+  }
+
+  const homes: RelocateHome[] = useMemo(
+    () => (destination ? homesFor(destination, purpose) : []),
+    [destination, purpose]
+  );
+
+  function toggleShortlist(id: string) {
+    setShortlist((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
+
+  async function sendChatMessage(value: string) {
+    if (!value || sending) return;
+    const nextHistory: ChatTurn[] = [...messages, { role: "user", text: value }];
+    pushUser(value);
+    setInput("");
+    setSending(true);
+    const { text, source } = await getRelocateReply(nextHistory, destination || null);
+    setAiPowered(source === "ai");
+    pushAssistant(text);
+    setSending(false);
+  }
+
+  function askAbout(prompt: string) {
+    if (step !== "chat") setStep("chat");
+    void sendChatMessage(prompt);
   }
 
   async function submitChat(e: React.FormEvent) {
@@ -128,7 +167,7 @@ export default function RelocateAI() {
     setSending(false);
   }
 
-  const progress = ["name", "origin", "destination", "purpose", "chat"].indexOf(step);
+  const progress = ["name", "origin", "destination", "purpose", "homes", "chat"].indexOf(step);
 
   return (
     <div className="min-h-screen bg-[#071a33] text-white">
@@ -167,7 +206,7 @@ export default function RelocateAI() {
           </p>
         </div>
 
-        {progress >= 4 && (
+        {progress >= 4 /* homes or chat: name/origin/destination/purpose are all known */ && (
           <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-xs text-white/60">
             <span className="rounded-full border border-white/15 px-3 py-1">{name}</span>
             <span className="rounded-full border border-white/15 px-3 py-1">
@@ -187,7 +226,7 @@ export default function RelocateAI() {
             row was just five unlabelled numbered circles, which read as
             decoration rather than a "here's where you are" indicator. */}
         <div className="mb-6 flex items-start justify-center gap-1.5 sm:gap-2">
-          {["Name", "From", "To", "Purpose", "Chat"].map((label, i) => (
+          {["Name", "From", "To", "Purpose", "Homes", "Chat"].map((label, i) => (
             <div key={label} className="flex items-start gap-1.5 sm:gap-2">
               <div className="flex flex-col items-center gap-1.5">
                 <span
@@ -209,13 +248,73 @@ export default function RelocateAI() {
                   {label}
                 </span>
               </div>
-              {i < 4 && <span className={`mt-3.5 h-px w-3 sm:w-4 ${i < progress ? "bg-emerald-400" : "bg-white/15"}`} />}
+              {i < 5 && <span className={`mt-3.5 h-px w-3 sm:w-4 ${i < progress ? "bg-emerald-400" : "bg-white/15"}`} />}
             </div>
           ))}
         </div>
         <p className="mb-6 text-center text-[11px] text-white/40">
-          Step {Math.min(progress + 1, 5)} of 5 - a few quick questions, then it's a free-form chat.
+          Step {Math.min(progress + 1, 6)} of 6 - a few quick questions, a shortlist, then it's a free-form chat.
         </p>
+
+        {step === "chat" && shortlist.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
+              Your shortlist:
+            </span>
+            {homes
+              .filter((h) => shortlist.includes(h.id))
+              .map((h) => (
+                <span
+                  key={h.id}
+                  className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80"
+                >
+                  ♥ {h.title}
+                  <button
+                    type="button"
+                    onClick={() => toggleShortlist(h.id)}
+                    aria-label={`Remove ${h.title} from shortlist`}
+                    className="text-white/40 hover:text-white"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+          </div>
+        )}
+
+        {step === "chat" && (
+          <div className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+            <button
+              type="button"
+              onClick={() => setServicesOpen((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                Local services checklist
+              </span>
+              <span className="text-[11px] font-semibold text-brand-gold">
+                {servicesOpen ? "Hide" : "Show"}
+              </span>
+            </button>
+            {servicesOpen && (
+              <div className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-2">
+                {LOCAL_SERVICES.map((s) => (
+                  <div key={s.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <p className="text-xs font-semibold text-white">{s.title}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-white/55">{s.blurb}</p>
+                    <button
+                      type="button"
+                      onClick={() => askAbout(s.askPrompt)}
+                      className="mt-1.5 text-[11px] font-semibold text-brand-gold hover:underline"
+                    >
+                      Ask Linda about this
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-sm">
           <div ref={scrollRef} className="max-h-[50vh] space-y-3 overflow-y-auto p-5 sm:p-6">
@@ -241,7 +340,128 @@ export default function RelocateAI() {
             )}
           </div>
 
-          <div className="border-t border-white/10 p-4 sm:p-5">
+          {step === "homes" && (
+            <div className="border-t border-white/10 p-4 sm:p-5">
+              <div className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => setDocsOpen((v) => !v)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    Documents you'll need
+                  </span>
+                  <span className="text-[11px] font-semibold text-brand-gold">
+                    {docsOpen ? "Hide" : "Show checklist"}
+                  </span>
+                </button>
+                {docsOpen && (
+                  <div className="grid gap-4 border-t border-white/10 px-4 py-4 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-gold">
+                        For your visa route
+                      </p>
+                      <ul className="space-y-1.5 text-xs text-white/70">
+                        {documentsFor(purpose).visa.map((d) => (
+                          <li key={d.label}>
+                            <span className="font-semibold text-white/90">{d.label}</span> - {d.note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-400">
+                        For renting on Buynidify
+                      </p>
+                      <ul className="space-y-1.5 text-xs text-white/70">
+                        {documentsFor(purpose).rental.map((d) => (
+                          <li key={d.label}>
+                            <span className="font-semibold text-white/90">{d.label}</span> - {d.note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {homes.map((home) => {
+                  const isOpen = expandedHome === home.id;
+                  const saved = shortlist.includes(home.id);
+                  return (
+                    <div
+                      key={home.id}
+                      className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+                    >
+                      <div className="relative h-24 w-full">
+                        <img src={home.imageUrl} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute right-2 top-2 rounded-full bg-brand-gold px-2 py-0.5 text-[10px] font-bold text-brand-ink">
+                          {home.fitScore}% fit
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleShortlist(home.id)}
+                          aria-label={saved ? "Remove from shortlist" : "Save to shortlist"}
+                          className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-xs transition-colors ${
+                            saved ? "bg-brand-gold text-brand-ink" : "bg-black/40 text-white hover:bg-black/60"
+                          }`}
+                        >
+                          {saved ? "♥" : "♡"}
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-sm font-semibold text-white">{home.title}</p>
+                        <p className="text-xs text-white/50">
+                          {home.area} · {home.beds} bed · £{home.rent.toLocaleString("en-GB")}/mo
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedHome(isOpen ? null : home.id)}
+                          className="mt-2 text-[11px] font-semibold text-brand-gold hover:underline"
+                        >
+                          {isOpen ? "Hide AI fit analysis" : "View AI fit analysis"}
+                        </button>
+                        {isOpen && (
+                          <div className="mt-2 space-y-2 border-t border-white/10 pt-2 text-[11px] leading-relaxed text-white/70">
+                            <div>
+                              <p className="font-semibold uppercase tracking-wide text-emerald-400">Why it fits</p>
+                              <ul className="mt-0.5 space-y-0.5">
+                                {home.fitReasons.map((r) => (
+                                  <li key={r}>· {r}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div>
+                              <p className="font-semibold uppercase tracking-wide text-amber-300">Worth checking</p>
+                              <ul className="mt-0.5 space-y-0.5">
+                                {home.redFlags.map((r) => (
+                                  <li key={r}>· {r}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <p className="text-white/80">{home.nextStep}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={continueToChat}
+                className="mt-4 w-full rounded-full bg-brand-gold py-2.5 text-sm font-bold text-brand-ink transition-transform hover:scale-[1.01]"
+              >
+                Continue to chat
+              </button>
+              <p className="mt-2 text-center text-[10px] text-white/35">
+                Fit scores are an AI-style estimate for this demo, not a live match against real availability.
+              </p>
+            </div>
+          )}
+
+          <div className={`border-t border-white/10 p-4 sm:p-5 ${step === "homes" ? "hidden" : ""}`}>
             {step === "purpose" ? (
               <div className="flex flex-wrap gap-2">
                 {purposeOptions.map((o) => (
@@ -285,6 +505,19 @@ export default function RelocateAI() {
           </div>
         </div>
 
+        {progress >= 4 && (
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setVoiceOpen(true)}
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 transition-colors hover:border-brand-gold hover:text-brand-gold"
+            >
+              <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+              Talk to Linda - live translated call demo
+            </button>
+          </div>
+        )}
+
         <p className="mt-4 text-center text-[11px] text-white/35">
           {aiPowered
             ? "Responses are AI-generated."
@@ -292,6 +525,8 @@ export default function RelocateAI() {
           General information only, not immigration or legal advice.
         </p>
       </main>
+
+      <RelocateVoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} destination={destination} />
     </div>
   );
 }

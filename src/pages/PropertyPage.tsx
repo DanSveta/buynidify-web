@@ -35,6 +35,7 @@ import TenantProfileModal from "../app/components/TenantProfileModal";
 import ConnectTenantModal from "../app/components/ConnectTenantModal";
 import Avatar from "../app/components/Avatar";
 import { AIAnalysisCard, type AnalysisMetric } from "../app/components/AIAnalysisCard";
+import { PurchaseAnalysisCard } from "../app/components/PurchaseAnalysisCard";
 import { marketFor, suggestedRent } from "../data/ukMarketData";
 
 // The property page, rebuilt as an actual editorial listing page rather than
@@ -1096,21 +1097,21 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
             {analysis && (
               <>
                 <Divider />
-                <AIAnalysisCard
+                <PurchaseAnalysisCard
                   summary={analysis.summary}
                   source={analysis.source ?? "demo"}
-                  marketNote={`${listing.city}: ${marketFor(listing.city).summary}`}
-                  metrics={
+                  price={listing.price}
+                  monthlyRent={analysis.kind === "investor" ? analysis.monthlyRent : analysis.estimatedMonthlyRent}
+                  sqft={details.sqft}
+                  cityLabel={listing.city}
+                  marketYieldRange={marketFor(listing.city).yieldRange}
+                  marketSummary={marketFor(listing.city).summary}
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                  otherMetrics={
                     analysis.kind === "investor"
                       ? ([
-                          {
-                            key: "rent",
-                            label: "Suggested monthly rent",
-                            value: `${gbp.format(analysis.monthlyRent)}/mo`,
-                            icon: "money",
-                            featured: true,
-                          },
-                          { key: "gross", label: "Gross yield", value: `${analysis.grossYield.toFixed(1)}%`, icon: "trend" },
                           { key: "net", label: "Net yield", value: `${analysis.netYield.toFixed(1)}%`, icon: "scale" },
                           { key: "loc", label: "Location score", value: `${analysis.locationScore}/10`, icon: "pin" },
                           { key: "demand", label: "Rental demand", value: analysis.rentalDemand, icon: "users" },
@@ -1118,13 +1119,6 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                           { key: "profile", label: "Tenant profile", value: analysis.tenantProfile, icon: "compass" },
                         ] satisfies AnalysisMetric[])
                       : ([
-                          {
-                            key: "rent",
-                            label: "Suggested monthly rent",
-                            value: `${gbp.format(analysis.estimatedMonthlyRent)}/mo`,
-                            icon: "money",
-                            featured: true,
-                          },
                           { key: "deposit", label: "Est. deposit", value: gbp.format(analysis.deposit), icon: "wallet" },
                           { key: "upfront", label: "Upfront costs", value: gbp.format(analysis.upfrontCosts), icon: "scale" },
                           { key: "commute", label: "Commute", value: `${analysis.commuteScore}/10`, icon: "compass" },
@@ -1132,9 +1126,6 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                           { key: "value", label: "Value for money", value: analysis.valueForMoney, icon: "trend" },
                         ] satisfies AnalysisMetric[])
                   }
-                  positives={analysis.positives}
-                  consider={analysis.consider}
-                  suggestions={analysis.suggestions}
                 />
               </>
             )}

@@ -59,28 +59,28 @@ export default function ChooseYourJourney() {
                   <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue transition-colors duration-300 group-hover:bg-white/10 group-hover:text-white">
                     <Icon className="h-6 w-6" />
                   </span>
-                  <span className="rounded-full border border-brand-border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-muted transition-colors duration-300 group-hover:border-white/20 group-hover:text-white/60">
+                  <span className="rounded-full border border-brand-border px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-muted transition-colors duration-300 group-hover:border-white/20 group-hover:text-white/60">
                     {card.tag}
                   </span>
                 </div>
 
                 <div className="relative mt-6 flex items-center gap-2">
-                  <h3 className="font-display text-xl font-semibold tracking-tight text-brand-ink transition-colors duration-300 group-hover:text-white">
+                  <h3 className="font-display text-2xl font-semibold tracking-tight text-brand-ink transition-colors duration-300 group-hover:text-white">
                     {card.title}
                   </h3>
                   <CheckCircleIcon className="h-4 w-4 scale-0 text-brand-gold opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100" />
                 </div>
-                <p className="relative mt-2 text-sm text-brand-muted transition-colors duration-300 group-hover:text-white/70">
+                <p className="relative mt-2 text-base text-brand-muted transition-colors duration-300 group-hover:text-white/70">
                   {card.description}
                 </p>
 
-                <ul className="relative mt-5 flex flex-col gap-2">
+                <ul className="relative mt-5 flex flex-col gap-2.5">
                   {card.highlights.map((h) => (
                     <li
                       key={h}
-                      className="flex items-center gap-2 text-xs font-medium text-brand-muted transition-colors duration-300 group-hover:text-white/80"
+                      className="flex items-center gap-2 text-sm font-medium text-brand-muted transition-colors duration-300 group-hover:text-white/80"
                     >
-                      <span className="h-1 w-1 flex-shrink-0 rounded-full bg-brand-blue transition-colors duration-300 group-hover:bg-brand-gold" />
+                      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-blue transition-colors duration-300 group-hover:bg-brand-gold" />
                       {h}
                     </li>
                   ))}
