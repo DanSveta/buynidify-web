@@ -30,9 +30,14 @@ function formatDate(iso: string) {
 
 const demoLabel: Partial<Record<Agreement["stage"], string>> = {
   matched: "Buynidify confirms the match (demo)",
+  "viewing-arranged": "Confirm the viewing took place (demo)",
   "terms-agreed": "Buynidify agrees terms with both sides (demo)",
   "agreement-signed": "Both sides sign the agreement (demo)",
   "deposit-secured": "Pay the deposit (demo)",
+  "searches-survey": "Confirm searches & survey are back (demo)",
+  "mortgage-finalised": "Confirm the mortgage is finalised (demo)",
+  "contracts-exchanged": "Confirm contracts are exchanged (demo)",
+  completion: "Confirm completion (demo)",
   "tenancy-prep": "Confirm the purchase is complete (demo)",
   "tenancy-active": "Buynidify completes tenancy prep (demo)",
 };

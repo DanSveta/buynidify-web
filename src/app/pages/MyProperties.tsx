@@ -11,6 +11,9 @@ import PublishModal from "../components/PublishModal";
 import PublishDemandModal from "../components/PublishDemandModal";
 import AgreementTimeline from "../components/AgreementTimeline";
 import { buildInvestorAnalysis, buildBuyerAnalysis } from "../utils/analysis";
+import { runAiAnalysis } from "../utils/aiAnalysis";
+import { AIAnalysisCard, type AnalysisMetric } from "../components/AIAnalysisCard";
+import { suggestedRent, marketFor } from "../../data/ukMarketData";
 import { propertyImage } from "../utils/propertyImages";
 import { useAuthGate } from "../context/AuthGateContext";
 import Avatar from "../components/Avatar";
@@ -199,16 +202,18 @@ function PropertyCard({
         })()
     : null;
 
-  function runAnalysis() {
+  async function runAnalysis() {
     setAnalysing(true);
-    window.setTimeout(() => {
-      updateImportedProperty(property.id, {
-        analysis: buildInvestorAnalysis(property),
-        showAnalysis: true,
-      });
-      setAnalysing(false);
-      setOpen(true);
-    }, 700);
+    // Tries the real model first (same call PropertyLinkImporter uses) and
+    // only falls back to the researched estimate if no key is configured or
+    // the call fails - before this, My Properties skipped straight to the
+    // fallback every time, so "Run AI analysis" here never actually asked
+    // the model anything.
+    const result = await runAiAnalysis(property, "investor");
+    const analysis = result.ok ? result.analysis : buildInvestorAnalysis(property);
+    updateImportedProperty(property.id, { analysis, showAnalysis: true });
+    setAnalysing(false);
+    setOpen(true);
   }
 
   function requestToProceed(tenant: InterestedTenant) {
@@ -311,37 +316,32 @@ function PropertyCard({
               AI analysis
             </h4>
             {analysis ? (
-              <div className="mt-2 rounded-xl bg-brand-surface p-4">
-                <p className="text-sm text-brand-ink">{analysis.summary}</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold text-emerald-700">In its favour</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.positives.map((i) => (
-                        <li key={i}>+ {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-amber-700">Check before you commit</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.consider.map((i) => (
-                        <li key={i}>− {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-brand-blue">Suggested</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.suggestions.map((i) => (
-                        <li key={i}>→ {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <p className="mt-3 text-[10px] italic text-brand-muted">
-                  An estimate only, not financial or legal advice.
-                </p>
+              <div className="mt-2">
+                <AIAnalysisCard
+                  summary={analysis.summary}
+                  source={analysis.source ?? "demo"}
+                  marketNote={`${property.location}: ${marketFor(property.location).summary}`}
+                  metrics={
+                    [
+                      {
+                        key: "rent",
+                        label: "Suggested monthly rent",
+                        value: `${gbp.format(analysis.monthlyRent)}/mo`,
+                        icon: "money",
+                        featured: true,
+                      },
+                      { key: "gross", label: "Gross yield", value: `${analysis.grossYield.toFixed(1)}%`, icon: "trend" },
+                      { key: "net", label: "Net yield", value: `${analysis.netYield.toFixed(1)}%`, icon: "scale" },
+                      { key: "loc", label: "Location score", value: `${analysis.locationScore}/10`, icon: "pin" },
+                      { key: "demand", label: "Rental demand", value: analysis.rentalDemand, icon: "users" },
+                      { key: "let", label: "Time to let", value: analysis.timeToLet, icon: "clock" },
+                      { key: "profile", label: "Tenant profile", value: analysis.tenantProfile, icon: "compass" },
+                    ] satisfies AnalysisMetric[]
+                  }
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                />
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-brand-surface p-4">
@@ -468,7 +468,7 @@ function PropertyCard({
       {publishing && (
         <PublishModal
           property={property}
-          defaultRent={analysis?.monthlyRent ?? Math.round((property.price * 0.05) / 12 / 5) * 5}
+          defaultRent={analysis?.monthlyRent ?? suggestedRent(property.location, property.beds)}
           existing={property.published}
           onCancel={() => setPublishing(false)}
           onPublish={(details) => {
@@ -697,16 +697,13 @@ function TenantPropertyCard({ property }: { property: ImportedProperty }) {
   const analysis = property.analysis?.kind === "buyer" ? property.analysis : null;
   const rent = property.published?.rent;
 
-  function runAnalysis() {
+  async function runAnalysis() {
     setAnalysing(true);
-    window.setTimeout(() => {
-      updateImportedProperty(property.id, {
-        analysis: buildBuyerAnalysis(property),
-        showAnalysis: true,
-      });
-      setAnalysing(false);
-      setOpen(true);
-    }, 700);
+    const result = await runAiAnalysis(property, "buyer");
+    const analysis = result.ok ? result.analysis : buildBuyerAnalysis(property);
+    updateImportedProperty(property.id, { analysis, showAnalysis: true });
+    setAnalysing(false);
+    setOpen(true);
   }
 
   return (
@@ -790,37 +787,31 @@ function TenantPropertyCard({ property }: { property: ImportedProperty }) {
               AI analysis
             </h4>
             {analysis ? (
-              <div className="mt-2 rounded-xl bg-brand-surface p-4">
-                <p className="text-sm text-brand-ink">{analysis.summary}</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold text-emerald-700">In its favour</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.positives.map((i) => (
-                        <li key={i}>+ {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-amber-700">Check before you commit</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.consider.map((i) => (
-                        <li key={i}>− {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-brand-blue">Suggested</p>
-                    <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                      {analysis.suggestions.map((i) => (
-                        <li key={i}>→ {i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <p className="mt-3 text-[10px] italic text-brand-muted">
-                  An estimate only, not financial or legal advice.
-                </p>
+              <div className="mt-2">
+                <AIAnalysisCard
+                  summary={analysis.summary}
+                  source={analysis.source ?? "demo"}
+                  marketNote={`${property.location}: ${marketFor(property.location).summary}`}
+                  metrics={
+                    [
+                      {
+                        key: "rent",
+                        label: "Suggested monthly rent",
+                        value: `${gbp.format(analysis.estimatedMonthlyRent)}/mo`,
+                        icon: "money",
+                        featured: true,
+                      },
+                      { key: "deposit", label: "Est. deposit", value: gbp.format(analysis.deposit), icon: "wallet" },
+                      { key: "upfront", label: "Upfront costs", value: gbp.format(analysis.upfrontCosts), icon: "scale" },
+                      { key: "commute", label: "Commute", value: `${analysis.commuteScore}/10`, icon: "compass" },
+                      { key: "amenities", label: "Amenities", value: `${analysis.amenitiesScore}/10`, icon: "spark" },
+                      { key: "value", label: "Value for money", value: analysis.valueForMoney, icon: "trend" },
+                    ] satisfies AnalysisMetric[]
+                  }
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                />
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl bg-brand-surface p-4">
@@ -901,7 +892,7 @@ function TenantPropertyCard({ property }: { property: ImportedProperty }) {
       {publishing && (
         <PublishDemandModal
           property={property}
-          defaultRent={Math.round((property.price * 0.045) / 12 / 5) * 5}
+          defaultRent={analysis?.estimatedMonthlyRent ?? suggestedRent(property.location, property.beds)}
           existing={property.published}
           onCancel={() => setPublishing(false)}
           onPublish={(details) => {

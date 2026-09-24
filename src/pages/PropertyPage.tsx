@@ -22,6 +22,8 @@ import { avatarFor } from "../app/utils/avatars";
 import {
   investorProfileFor,
   tenantProfileFor,
+  namedInvestorProfile,
+  namedTenantProfile,
   profileFromInterestedTenant,
   selfProfile,
   type PartyProfile,
@@ -32,6 +34,8 @@ import { fallbackTenantProfile } from "../app/components/DealDetailPanel";
 import TenantProfileModal from "../app/components/TenantProfileModal";
 import ConnectTenantModal from "../app/components/ConnectTenantModal";
 import Avatar from "../app/components/Avatar";
+import { AIAnalysisCard, type AnalysisMetric } from "../app/components/AIAnalysisCard";
+import { marketFor, suggestedRent } from "../data/ukMarketData";
 
 // The property page, rebuilt as an actual editorial listing page rather than
 // a stack of bordered dashboard cards. The model is a real portal's own
@@ -58,12 +62,17 @@ function portalFromUrl(url?: string) {
 }
 
 function demandAnalysis(d: TenantDemandEntry) {
-  const rent = d.targetRentPerMonth ?? Math.round(((d.targetPrice ?? 0) * 0.05) / 12 / 5) * 5;
+  const market = marketFor(d.city);
+  // The tenant's own target rent wins if they set one - it's what they
+  // actually said they can afford - otherwise fall back to this city's
+  // researched market rate for the bed count they're after.
+  const rent = d.targetRentPerMonth ?? suggestedRent(d.city, d.minBeds);
   let h = 0;
   for (let i = 0; i < d.id.length; i++) h = (h * 31 + d.id.charCodeAt(i)) >>> 0;
   const commute = Math.round((6 + (h % 35) / 10) * 10) / 10;
   const amenities = Math.round((6 + ((h >> 3) % 35) / 10) * 10) / 10;
   const value = ["Fair", "Good", "Excellent"][h % 3];
+  const [rentLow, rentHigh] = market.rentByBeds[Math.min(4, Math.max(1, Math.round(d.minBeds))) as 1 | 2 | 3 | 4];
   return {
     rent,
     deposit: rent * 5,
@@ -71,14 +80,22 @@ function demandAnalysis(d: TenantDemandEntry) {
     commute,
     amenities,
     value,
-    summary: `This ${d.minBeds}-bedroom property in ${d.city} could suit your requirements. Based on your profile, it falls within affordability guidelines.`,
+    market,
+    rentLow,
+    rentHigh,
+    summary: `This ${d.minBeds}-bedroom property in ${d.city} could suit your requirements. ${market.summary}`,
     positives: [
       `${d.minBeds} bedroom${d.minBeds === 1 ? "" : "s"} offer good space for your household`,
       `${d.city} has good transport links`,
       "Property type suits long-term tenancy",
     ],
     consider: ["Confirm pets policy with landlord", "Check broadband speeds for the area", "Verify council tax band"],
-    suggestions: ["Ask about minimum lease term", "Request energy performance certificate"],
+    suggestions: [
+      `Typical rent here: ${gbp.format(rentLow)}-${gbp.format(rentHigh)}/month for ${d.minBeds} bed${d.minBeds === 1 ? "" : "s"}`,
+      "Ask about minimum lease term",
+      "Request energy performance certificate",
+      `Popular areas nearby: ${market.popularAreas.slice(0, 3).join(", ")}`,
+    ],
   };
 }
 
@@ -121,6 +138,12 @@ const Icon = {
     <svg {...iconProps} className={p.className}>
       <path d="M12 21s7-6.1 7-11.5S16.4 3 12 3 5 4.6 5 9.5 12 21 12 21Z" />
       <circle cx="12" cy="9.5" r="2.4" />
+    </svg>
+  ),
+  user: (p: { className?: string }) => (
+    <svg {...iconProps} className={p.className}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.5 20c1.2-4 4.2-6 7.5-6s6.3 2 7.5 6" />
     </svg>
   ),
   doc: (p: { className?: string }) => (
@@ -373,12 +396,21 @@ function AgentCard({
   profile,
   onMessage,
   fill,
+  interestCount,
+  interestLabel,
+  interestZeroLabel,
 }: {
   profile: PartyProfile;
   onMessage?: () => void;
   /** Stretches to match the height of the photo it sits beside in the hero
    *  row, instead of only being as tall as its own content. */
   fill?: boolean;
+  /** How many other people are interested in this listing/request - shown
+   *  as an anonymized cluster (no names, no photos), since this card is
+   *  what a stranger sees, not the owner. Omit to hide the row entirely. */
+  interestCount?: number;
+  interestLabel?: string;
+  interestZeroLabel?: string;
 }) {
   const allVerified = profile.verified.idCheck && profile.verified.referencing && profile.verified.funds;
   const propertiesListed = profile.details.find((d) => d.label === "Properties listed")?.value;
@@ -440,6 +472,14 @@ function AgentCard({
           </div>
         </div>
 
+        {interestCount !== undefined && (
+          <InterestCluster
+            count={interestCount}
+            label={interestLabel ?? "interested"}
+            zeroLabel={interestZeroLabel ?? "No interest yet"}
+          />
+        )}
+
         {onMessage && (
           <button
             type="button"
@@ -463,11 +503,23 @@ function YourListingCard({
   stats,
   manageTo,
   manageLabel,
+  interest,
 }: {
   profile: PartyProfile;
   stats: { label: string; value: string }[];
   manageTo: string;
   manageLabel: string;
+  /** Real names/photos this time - it's your own listing, so unlike
+   *  AgentCard's anonymized version you're allowed to see exactly who's
+   *  interested. Clicking scrolls down to the full list further down the
+   *  page. */
+  interest?: {
+    count: number;
+    label: string;
+    zeroLabel: string;
+    people?: { name: string; initials: string; photoUrl?: string }[];
+    scrollToId: string;
+  };
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   return (
@@ -510,6 +562,16 @@ function YourListingCard({
         ))}
       </div>
 
+      {interest && (
+        <InterestCluster
+          count={interest.count}
+          label={interest.label}
+          zeroLabel={interest.zeroLabel}
+          people={interest.people}
+          onClick={interest.count > 0 ? () => scrollToId(interest.scrollToId) : undefined}
+        />
+      )}
+
       <Link
         to={manageTo}
         className="mt-6 block rounded-lg bg-brand-blue px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
@@ -518,6 +580,80 @@ function YourListingCard({
       </Link>
     </div>
   );
+}
+
+/** A stacked-circle "N people interested" indicator - overlapping avatars
+ *  (or, for a stranger looking at someone else's listing, overlapping blank
+ *  silhouettes instead of real photos) plus a "+N" badge and a count, the
+ *  way most marketplaces hint at demand without handing over who exactly is
+ *  interested. Clickable (scrolls to the full named list) only when there's
+ *  a list to scroll to - the owner's own view. A stranger sees the same
+ *  shape but nothing to click through to, which is the point: enough to
+ *  know it's wanted, not enough to know by whom. */
+function InterestCluster({
+  count,
+  label,
+  zeroLabel,
+  people,
+  onClick,
+}: {
+  count: number;
+  /** e.g. "tenants interested" / "investor interested" - already pluralised
+   *  for the count passed in. */
+  label: string;
+  zeroLabel: string;
+  /** Real name/photo for each of up to 3 shown circles - only ever passed
+   *  for the owner's own view. Omit for the anonymized stranger view. */
+  people?: { name: string; initials: string; photoUrl?: string }[];
+  onClick?: () => void;
+}) {
+  if (count === 0) {
+    return <p className="mt-4 text-xs text-brand-muted">{zeroLabel}</p>;
+  }
+  const shown = people?.slice(0, 3) ?? [];
+  const blanks = Math.max(0, Math.min(3, count) - shown.length);
+  const extra = count - shown.length - blanks;
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`mt-4 flex items-center gap-2.5 ${onClick ? "cursor-pointer group" : ""}`}
+    >
+      <span className="flex flex-shrink-0 items-center -space-x-2.5">
+        {shown.map((p, i) => (
+          <span
+            key={i}
+            className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-brand-blue text-[10px] font-bold text-white ring-2 ring-white"
+          >
+            {p.photoUrl ? <img src={p.photoUrl} alt="" className="h-full w-full object-cover" /> : p.initials}
+          </span>
+        ))}
+        {Array.from({ length: blanks }).map((_, i) => (
+          <span
+            key={`blank-${i}`}
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-surface text-brand-muted ring-2 ring-white"
+          >
+            <Icon.user className="h-3.5 w-3.5" />
+          </span>
+        ))}
+        {extra > 0 && (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-ink text-[10px] font-bold text-white ring-2 ring-white">
+            +{extra}
+          </span>
+        )}
+      </span>
+      <span
+        className={`text-xs font-semibold text-brand-ink ${onClick ? "group-hover:text-brand-blue group-hover:underline" : ""}`}
+      >
+        {count} {label}
+      </span>
+    </Tag>
+  );
+}
+
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /* --- small shared bits ------------------------------------------------------ */
@@ -745,7 +881,13 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
   const analysis = importedProperty?.analysis ?? null;
   const agreement = importedProperty?.agreement ?? null;
   const interested = interestedTenantsFor(listing.id);
-  const owner = investorProfileFor(listing.id, listing.city, listing.accepts);
+  // A self-published listing was always posted by the real signed-in
+  // investor, whoever's looking at it right now - a random generated name
+  // here is exactly the "Riverside Holdings on my own listing" bug.
+  const owner =
+    listing.source === "imported"
+      ? namedInvestorProfile(listing.id, namesByRole.investor, listing.city, listing.accepts)
+      : investorProfileFor(listing.id, listing.city, listing.accepts);
   const portal = listing.portal ?? portalFromUrl(listing.url);
   const expressed = hasExpressedInterest(listing.id);
   const canExpress = isTenant || isGuest;
@@ -861,10 +1003,20 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
               ]}
               manageTo="/app/my-properties"
               manageLabel="Manage in My Properties"
+              interest={{
+                count: interested.length,
+                label: interested.length === 1 ? "tenant interested" : "tenants interested",
+                zeroLabel: "No interest yet",
+                people: interested.map((t) => ({ name: t.name, initials: t.initials, photoUrl: avatarFor(t.name) })),
+                scrollToId: "interested-tenants",
+              }}
             />
           ) : (
             <AgentCard
               profile={owner}
+              interestCount={interested.length}
+              interestLabel={interested.length === 1 ? "tenant interested" : "tenants interested"}
+              interestZeroLabel="No interest yet - be the first"
               fill
               onMessage={() =>
                 requireAccount({
@@ -944,52 +1096,46 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
             {analysis && (
               <>
                 <Divider />
-                <div className="rounded-2xl bg-brand-blue-light/70 p-6">
-                  <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-brand-ink">
-                    <Icon.sparkle className="h-5 w-5 text-brand-blue" /> Buynidify AI analysis
-                  </h2>
-                  <p className="mt-2 text-sm text-brand-ink">{analysis.summary}</p>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {analysis.kind === "investor" ? (
-                      <>
-                        <MetricPill label="Est. rent" value={`${gbp.format(analysis.monthlyRent)}/mo`} />
-                        <MetricPill label="Gross yield" value={`${analysis.grossYield.toFixed(1)}%`} />
-                        <MetricPill label="Location score" value={`${analysis.locationScore}/10`} />
-                        <MetricPill label="Rental demand" value={analysis.rentalDemand} />
-                        <MetricPill label="Time to let" value={analysis.timeToLet} />
-                        <MetricPill label="Tenant profile" value={analysis.tenantProfile} />
-                      </>
-                    ) : (
-                      <>
-                        <MetricPill label="Est. deposit" value={gbp.format(analysis.deposit)} />
-                        <MetricPill label="Upfront costs" value={gbp.format(analysis.upfrontCosts)} />
-                        <MetricPill label="Commute" value={`${analysis.commuteScore}/10`} />
-                        <MetricPill label="Amenities" value={`${analysis.amenitiesScore}/10`} />
-                      </>
-                    )}
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-700">Positives</p>
-                      <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                        {analysis.positives.map((i) => (
-                          <li key={i}>+ {i}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-amber-700">Consider</p>
-                      <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                        {analysis.consider.map((i) => (
-                          <li key={i}>− {i}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-[11px] italic text-brand-ink/60">
-                    An estimate only, not financial or legal advice.
-                  </p>
-                </div>
+                <AIAnalysisCard
+                  summary={analysis.summary}
+                  source={analysis.source ?? "demo"}
+                  marketNote={`${listing.city}: ${marketFor(listing.city).summary}`}
+                  metrics={
+                    analysis.kind === "investor"
+                      ? ([
+                          {
+                            key: "rent",
+                            label: "Suggested monthly rent",
+                            value: `${gbp.format(analysis.monthlyRent)}/mo`,
+                            icon: "money",
+                            featured: true,
+                          },
+                          { key: "gross", label: "Gross yield", value: `${analysis.grossYield.toFixed(1)}%`, icon: "trend" },
+                          { key: "net", label: "Net yield", value: `${analysis.netYield.toFixed(1)}%`, icon: "scale" },
+                          { key: "loc", label: "Location score", value: `${analysis.locationScore}/10`, icon: "pin" },
+                          { key: "demand", label: "Rental demand", value: analysis.rentalDemand, icon: "users" },
+                          { key: "let", label: "Time to let", value: analysis.timeToLet, icon: "clock" },
+                          { key: "profile", label: "Tenant profile", value: analysis.tenantProfile, icon: "compass" },
+                        ] satisfies AnalysisMetric[])
+                      : ([
+                          {
+                            key: "rent",
+                            label: "Suggested monthly rent",
+                            value: `${gbp.format(analysis.estimatedMonthlyRent)}/mo`,
+                            icon: "money",
+                            featured: true,
+                          },
+                          { key: "deposit", label: "Est. deposit", value: gbp.format(analysis.deposit), icon: "wallet" },
+                          { key: "upfront", label: "Upfront costs", value: gbp.format(analysis.upfrontCosts), icon: "scale" },
+                          { key: "commute", label: "Commute", value: `${analysis.commuteScore}/10`, icon: "compass" },
+                          { key: "amenities", label: "Amenities", value: `${analysis.amenitiesScore}/10`, icon: "spark" },
+                          { key: "value", label: "Value for money", value: analysis.valueForMoney, icon: "trend" },
+                        ] satisfies AnalysisMetric[])
+                  }
+                  positives={analysis.positives}
+                  consider={analysis.consider}
+                  suggestions={analysis.suggestions}
+                />
               </>
             )}
 
@@ -1003,7 +1149,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
             {isYours && (
               <>
                 <Divider />
-                <h2 className="font-display text-xl font-semibold text-brand-ink">
+                <h2 id="interested-tenants" className="font-display text-xl font-semibold text-brand-ink scroll-mt-24">
                   Interested tenants <span className="text-base font-normal text-brand-muted">({interested.length})</span>
                 </h2>
                 {interested.length === 0 ? (
@@ -1165,14 +1311,6 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
   );
 }
 
-function MetricPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-white/70 px-3 py-2 text-center">
-      <p className="text-[10px] uppercase tracking-wide text-brand-ink/60">{label}</p>
-      <p className="text-sm font-semibold text-brand-ink">{value}</p>
-    </div>
-  );
-}
 
 /* --- demand (a tenant's wanted property) ---------------------------------- */
 
@@ -1188,7 +1326,16 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
   const [connecting, setConnecting] = useState(false);
 
   const isYours = isTenant && demand.source === "imported";
-  const poster = tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds);
+  // Same reasoning as the investor side: a self-published home request was
+  // always posted by the real signed-in tenant, not an invented one.
+  const poster =
+    demand.source === "imported"
+      ? namedTenantProfile(demand.id, namesByRole.tenant, demand.city, {
+          budget: demand.targetRentPerMonth,
+          minBeds: demand.minBeds,
+          household: demand.household,
+        })
+      : tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds);
   const a = demandAnalysis(demand);
   const portal = portalFromUrl(demand.url);
   const responded = hasInvestorResponded(demand.id);
@@ -1276,11 +1423,20 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
               ]}
               manageTo="/app/my-properties"
               manageLabel="Manage in My Properties"
+              interest={{
+                count: responded ? 1 : 0,
+                label: "investor interested",
+                zeroLabel: "No interest yet",
+                scrollToId: "investor-interest",
+              }}
             />
           ) : (
             <AgentCard
               profile={poster}
               fill
+              interestCount={responded ? 1 : 0}
+              interestLabel="investor interested"
+              interestZeroLabel="No interest yet - be the first"
               onMessage={() =>
                 requireAccount({
                   title: "Message the tenant",
@@ -1361,39 +1517,30 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
 
             <Divider />
 
-            <div className="rounded-2xl bg-brand-blue-light/70 p-6">
-              <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-brand-ink">
-                <Icon.sparkle className="h-5 w-5 text-brand-blue" /> Buynidify AI analysis
-              </h2>
-              <p className="mt-2 text-sm text-brand-ink">{a.summary}</p>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <MetricPill label="Monthly rent" value={gbp.format(a.rent)} />
-                <MetricPill label="Estimated deposit" value={gbp.format(a.deposit)} />
-                <MetricPill label="Upfront costs" value={gbp.format(a.upfront)} />
-                <MetricPill label="Commute score" value={`${a.commute}/10`} />
-                <MetricPill label="Amenities score" value={`${a.amenities}/10`} />
-                <MetricPill label="Value for money" value={a.value} />
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold text-emerald-700">Positives</p>
-                  <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                    {a.positives.map((i) => (
-                      <li key={i}>+ {i}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-amber-700">Consider</p>
-                  <ul className="mt-1 space-y-0.5 text-xs text-brand-ink">
-                    {a.consider.map((i) => (
-                      <li key={i}>− {i}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              <p className="mt-3 text-[11px] italic text-brand-ink/60">An estimate only, not financial or legal advice.</p>
-            </div>
+            <AIAnalysisCard
+              summary={a.summary}
+              source="demo"
+              marketNote={`${demand.city}: ${a.market.summary}`}
+              metrics={
+                [
+                  {
+                    key: "rent",
+                    label: "Suggested monthly rent",
+                    value: `${gbp.format(a.rent)}/mo`,
+                    icon: "money",
+                    featured: true,
+                  },
+                  { key: "deposit", label: "Estimated deposit", value: gbp.format(a.deposit), icon: "wallet" },
+                  { key: "upfront", label: "Upfront costs", value: gbp.format(a.upfront), icon: "scale" },
+                  { key: "commute", label: "Commute score", value: `${a.commute}/10`, icon: "compass" },
+                  { key: "amenities", label: "Amenities score", value: `${a.amenities}/10`, icon: "spark" },
+                  { key: "value", label: "Value for money", value: a.value, icon: "trend" },
+                ] satisfies AnalysisMetric[]
+              }
+              positives={a.positives}
+              consider={a.consider}
+              suggestions={a.suggestions}
+            />
 
             <Divider />
 
@@ -1405,7 +1552,9 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
             {isYours && (
               <>
                 <Divider />
-                <h2 className="font-display text-xl font-semibold text-brand-ink">Investor interest</h2>
+                <h2 id="investor-interest" className="font-display text-xl font-semibold text-brand-ink scroll-mt-24">
+                  Investor interest
+                </h2>
                 <p className="mt-2 text-sm text-brand-muted">
                   {responded
                     ? "An investor has responded to this request ✓"

@@ -171,6 +171,76 @@ export function selfProfile(id: string, name: string, role: PartyRole): PartyPro
   };
 }
 
+/** When a listing was self-published (source `"imported"`), the person
+ *  behind it is always the real signed-in investor persona, not a random
+ *  stand-in - so "Listed by" should show the real name to EVERYONE who
+ *  looks at it, not just when the investor is the one viewing their own
+ *  page. Before this existed, a tenant (or guest) opening a self-published
+ *  listing saw a completely invented investor generated from the property's
+ *  id - e.g. "Riverside Holdings" on a property the signed-in investor had
+ *  just posted themselves. */
+export function namedInvestorProfile(
+  id: string,
+  name: string,
+  city: string,
+  accepts?: string[]
+): PartyProfile {
+  const h = hash(id);
+  const c = common(h);
+  return {
+    id: `investor-${id}`,
+    name,
+    initials: initialsOf(name),
+    role: "Investor",
+    location: city,
+    photoUrl: avatarFor(name),
+    ...c,
+    verified: { idCheck: true, referencing: true, funds: true },
+    about: `Buy-to-let investor active in ${city}.`,
+    details: [
+      { label: "Manages via", value: "Self-managed" },
+      { label: "Deposit scheme", value: "Tenancy Deposit Scheme" },
+      {
+        label: "Accepts",
+        value: accepts && accepts.length > 0 ? accepts.join(", ") : "Professionals",
+      },
+    ],
+  };
+}
+
+/** Same idea as namedInvestorProfile, for a tenant's self-published home
+ *  request - "Posted by" should show the real tenant persona's name and
+ *  what they actually told us (budget, household), not an invented tenant. */
+export function namedTenantProfile(
+  id: string,
+  name: string,
+  city: string,
+  opts?: { budget?: number; minBeds?: number; household?: string }
+): PartyProfile {
+  const h = hash(id);
+  const c = common(h);
+  return {
+    id: `tenant-${id}`,
+    name,
+    initials: initialsOf(name),
+    role: "Tenant",
+    location: city,
+    photoUrl: avatarFor(name),
+    ...c,
+    verified: { idCheck: true, referencing: true, funds: true },
+    about: `Looking for a ${opts?.minBeds ?? 2}-bedroom home in ${city}.${
+      opts?.household ? ` ${opts.household}.` : ""
+    }`,
+    details: [
+      { label: "Household", value: opts?.household || "Not specified" },
+      {
+        label: "Budget",
+        value: opts?.budget ? `£${opts.budget.toLocaleString("en-GB")}/mo` : "Flexible",
+      },
+    ],
+  };
+}
+
 export function investorProfileFor(id: string, city: string, accepts?: string[]): PartyProfile {
   const h = hash(id);
   const inv = INVESTORS[h % INVESTORS.length];

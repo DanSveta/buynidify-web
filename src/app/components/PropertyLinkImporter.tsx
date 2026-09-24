@@ -9,6 +9,7 @@ import { buildBuyerAnalysis, buildInvestorAnalysis } from "../utils/analysis";
 import { runAiAnalysis } from "../utils/aiAnalysis";
 import PublishModal from "./PublishModal";
 import { useAuthGate } from "../context/AuthGateContext";
+import { suggestedRent } from "../../data/ukMarketData";
 
 // Paste-a-link + AI analysis, matching the flow on the live buynidify.eu
 // demo. Two variants, because the two roles ask different questions of the
@@ -443,7 +444,7 @@ export default function PropertyLinkImporter({
           defaultRent={
             publishing.analysis?.kind === "investor"
               ? publishing.analysis.monthlyRent
-              : Math.round((publishing.price * 0.05) / 12 / 5) * 5
+              : suggestedRent(publishing.location, publishing.beds)
           }
           existing={publishing.published}
           onCancel={() => setPublishingId(null)}

@@ -3,24 +3,24 @@ import PublicShell from "./PublicShell";
 
 const values = [
   {
-    title: "Automated, end to end",
+    title: "Three parties, one marketplace",
     description:
-      "From an AI analysis of a pasted listing to a tenant moving in, the process runs through the platform - matching, terms, deposit and paperwork are coordinated for you, not chased over email.",
+      "Buynidify connects people looking for a long-term rental, the investors who own the properties, and the service providers who keep a tenancy running - not just two sides of a listing.",
   },
   {
-    title: "Verified on both sides",
+    title: "The full transaction, automated",
     description:
-      "Investors and tenants are identity-checked before a conversation starts, so every introduction Buynidify makes is between two real, verified people.",
+      "Order processing, secure payments and the paperwork in between are handled on the platform, so a deal moves forward on its own timeline instead of waiting on emails.",
   },
   {
-    title: "Built around UK property",
+    title: "AI where it saves real time",
     description:
-      "Rightmove, Zoopla, OnTheMarket, PrimeLocation, stamp duty, EPC ratings, tenancy law - the platform is built for how property actually works in England, not a generic template.",
+      "AI agents handle property analysis and document management, and take over day-to-day questions with 24/7 support once a lease is signed - freeing the team to focus on the parts that need a person.",
   },
   {
     title: "A network, not a directory",
     description:
-      "Insurance, conveyancing, cleaning, removals and maintenance run through Buynidify's partner network, so a deal doesn't stall waiting on someone to go find a tradesperson.",
+      "Virtual tours, document verification, legal services and post-move-in maintenance run through Buynidify's local partner network, so a deal doesn't stall waiting on someone to go find a tradesperson.",
   },
 ];
 
@@ -35,20 +35,28 @@ export default function About() {
           Property investment, without the busywork
         </h1>
         <p className="mt-3 max-w-2xl text-brand-muted">
-          Buynidify connects UK property investors with tenants and automates everything between an
-          interesting listing and a signed tenancy: analysis, matching, terms, deposit and the
-          services that come after. The goal is simple - a busy investor should be able to grow a
-          rental portfolio without being present for any of it, and a tenant should be able to find
-          somewhere to live without chasing agents for answers.
+          We don't buy or sell property ourselves. Buynidify is a marketplace connecting three
+          parties: people looking for a long-term rental, the real estate investors who own the
+          properties, and the service providers who support a tenancy once it's running. Our goal
+          is to digitise the whole workflow between them, with one automated platform for
+          transactions, order processing and secure payments.
         </p>
 
-        <h2 className="mt-12 font-display text-lg font-semibold text-brand-ink">What we're building</h2>
+        <h2 className="mt-12 font-display text-lg font-semibold text-brand-ink">How it works</h2>
         <p className="mt-2 max-w-2xl text-sm text-brand-muted">
-          Property investing is usually slow and manual: reading listings by hand, guessing at
-          yields, waiting on replies, chasing solicitors and tradespeople separately. Buynidify's AI
-          agent handles the analysis and coordination, and our team and partner network handle
-          everything that still needs a human - so investors get the returns of active property
-          management with the effort of a few clicks.
+          An investor picks a property from their dashboard, gets an AI analysis of its likely
+          yield, and finds a pre-vetted tenant before they've even completed the purchase. Once
+          both sides are happy, a letter of intent is signed and the tenant places a deposit to
+          confirm they're committed - which is what lets the investor go ahead with the purchase
+          and have the property earning rent from day one.
+        </p>
+        <p className="mt-3 max-w-2xl text-sm text-brand-muted">
+          From there, Buynidify handles the rest: virtual property tours, document verification,
+          legal services and, once someone's moved in, maintenance through our network of local
+          partners. AI agents accelerate the parts that used to take days - analysis and document
+          handling - and provide 24/7 support once a lease is signed. Tenants don't have to be
+          individuals, either: companies looking for rental housing for their employees use
+          Buynidify the same way.
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

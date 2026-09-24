@@ -24,8 +24,26 @@ type RoleContextValue = {
   logout: () => void;
 };
 
+// Which role you're signed in as lives in localStorage, shared by every tab -
+// back to the original behaviour. sessionStorage was tried here so two tabs
+// could each be a fully independent persona at once, but sessionStorage is
+// tied to one specific tab's own history entry: a lot of ordinary things
+// (the dev server reconnecting, a hard reload in some browsers, opening a
+// link that reuses the tab) can end up looking like a brand new tab to the
+// browser, which silently drops it back to signed-out. That made the app
+// impossible to test reliably even in normal single-tab use, which matters
+// far more than the two-tab trick. If side-by-side testing is wanted again,
+// it needs a more deliberate mechanism (e.g. a "?as=tenant" override) rather
+// than relying on sessionStorage's fragile tab boundary.
 const STORAGE_KEY = "buynidify-role";
-const NAMES_KEY = "buynidify-names";
+// Bumped to -v2: browsers that hit the name-collision bug (investor and
+// tenant both ending up saved as "Sam Carter") had that stuck in the OLD
+// key, and since a persisted value always wins over a fresh default, no
+// amount of fixing the dedupe logic could repair it after the fact - the
+// corrupted value just kept getting read back in and re-deduped into the
+// same corrupted shape. A new key name is a clean slate: nothing bad to
+// inherit, straight back to Alex Morgan / Sam Carter / Northgate HR.
+const NAMES_KEY = "buynidify-names-v2";
 // Superseded by NAMES_KEY, which keeps a separate name per persona - this is
 // only read once, to carry over whatever a returning browser already has.
 const LEGACY_NAME_KEY = "buynidify-name";
@@ -44,13 +62,33 @@ export const defaultNames: Record<Role, string> = {
 // looking like the same person in a self-dealing demo. Browsers that had a
 // single shared name before personas were split (or where the same name got
 // typed twice for two different roles) can end up in exactly that state, so
-// this straightens it out: first role to claim a name keeps it, anyone else
-// sharing it falls back to their own default instead.
+// this straightens it out.
 const ROLE_PRIORITY: Role[] = ["investor", "tenant", "corporate"];
 
 function dedupeNames(names: Record<Role, string>): Record<Role, string> {
-  const seen = new Set<string>();
   const result = { ...names };
+
+  // Rule 1: a persona can't be wearing a name that's actually a DIFFERENT
+  // persona's own default identity - e.g. investor ending up named "Sam
+  // Carter", which is tenant's default. That's not a harmless coincidence,
+  // it's investor having stolen tenant's name (or the old bug in this
+  // function's previous version, which could hand it over and then get
+  // stuck re-handing over the same name forever). Snap it straight back to
+  // its own default: this is what "investor stays investor" means.
+  for (const role of ROLE_PRIORITY) {
+    const value = result[role].trim().toLowerCase();
+    const ownDefault = defaultNames[role].trim().toLowerCase();
+    if (!value || value === ownDefault) continue;
+    const stolenFrom = ROLE_PRIORITY.find(
+      (other) => other !== role && defaultNames[other].trim().toLowerCase() === value
+    );
+    if (stolenFrom) result[role] = defaultNames[role];
+  }
+
+  // Rule 2: any other accidental duplicate (two custom, non-default names
+  // that just happen to match) - first role in priority order keeps it,
+  // the other falls back to its own default.
+  const seen = new Set<string>();
   for (const role of ROLE_PRIORITY) {
     const value = result[role].trim().toLowerCase();
     if (value && seen.has(value)) {
@@ -59,6 +97,7 @@ function dedupeNames(names: Record<Role, string>): Record<Role, string> {
       seen.add(value);
     }
   }
+
   return result;
 }
 

@@ -3,6 +3,7 @@ import type {
   ImportedProperty,
   InvestorAnalysis,
 } from "../context/ListingsContext";
+import { marketFor, suggestedRent } from "../../data/ukMarketData";
 
 // The AI analysis a pasted link gets. Lives here rather than inside the
 // importer because My Properties runs it too, and both sides must produce
@@ -40,21 +41,24 @@ function seedFrom(url: string) {
 
 export function buildInvestorAnalysis(p: ImportedProperty): InvestorAnalysis {
   const seed = seedFrom(p.url);
-  // Gross yield 4.5-7.4%, then the monthly rent is derived from it so the
-  // two figures always agree with each other.
-  const grossYield = Math.round((4.5 + (seed % 30) / 10) * 10) / 10;
-  const monthlyRent = Math.round((p.price * (grossYield / 100)) / 12 / 5) * 5;
+  const market = marketFor(p.location);
+  // The rent suggestion is the middle of this city's real researched range
+  // for this bedroom count, not a number pulled out of the price alone -
+  // that's what makes it something worth pre-filling a publish form with.
+  const monthlyRent = suggestedRent(p.location, p.beds);
+  const grossYield = Math.round(((monthlyRent * 12) / p.price) * 1000) / 10;
   const netYield = Math.round((grossYield - 1.5) * 10) / 10;
   const locationScore = Math.round((6.5 + ((seed >> 3) % 30) / 10) * 10) / 10;
   const demandOptions: InvestorAnalysis["rentalDemand"][] = ["Moderate", "High", "Very high"];
   const rentalDemand = demandOptions[seed % demandOptions.length];
   const timeToLetOptions = ["1-2 weeks", "2-4 weeks", "3-6 weeks"];
   const profileOptions = ["Young professionals", "Professional sharers", "Families", "Students and graduates"];
+  const [rentLow, rentHigh] = market.rentByBeds[Math.min(4, Math.max(1, Math.round(p.beds))) as 1 | 2 | 3 | 4];
 
   return {
     kind: "investor",
     source: "demo",
-    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} presents a solid buy-to-let opportunity with estimated gross yields around ${grossYield.toFixed(1)}%.`,
+    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} presents a solid buy-to-let opportunity with estimated gross yields around ${grossYield.toFixed(1)}%. ${market.summary}`,
     monthlyRent,
     grossYield,
     netYield,
@@ -76,7 +80,8 @@ export function buildInvestorAnalysis(p: ImportedProperty): InvestorAnalysis {
     ],
     suggestions: [
       `Target net yield of ${netYield.toFixed(1)}-${(netYield + 1).toFixed(1)}% for ${p.location}`,
-      `Market rent likely ${gbp.format(Math.round(monthlyRent * 0.95))}-${gbp.format(Math.round(monthlyRent * 1.05))}/month`,
+      `${p.location} ${p.beds}-bed rents typically run ${gbp.format(rentLow)}-${gbp.format(rentHigh)}/month`,
+      `Popular areas nearby: ${market.popularAreas.slice(0, 3).join(", ")}`,
       "Consider instructing a local letting agent for tenant referencing",
     ],
   };
@@ -84,14 +89,18 @@ export function buildInvestorAnalysis(p: ImportedProperty): InvestorAnalysis {
 
 export function buildBuyerAnalysis(p: ImportedProperty): BuyerAnalysis {
   const seed = seedFrom(p.url);
+  const market = marketFor(p.location);
   const valueOptions: BuyerAnalysis["valueForMoney"][] = ["Fair", "Good", "Excellent"];
+  const estimatedMonthlyRent = suggestedRent(p.location, p.beds);
+  const [rentLow, rentHigh] = market.rentByBeds[Math.min(4, Math.max(1, Math.round(p.beds))) as 1 | 2 | 3 | 4];
 
   return {
     kind: "buyer",
     source: "demo",
-    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} could suit your budget and search criteria.`,
+    summary: `This ${p.beds}-bedroom ${p.type.toLowerCase()} in ${p.location} could suit your budget and search criteria - if an investor buys it for you, rent here typically runs ${gbp.format(rentLow)}-${gbp.format(rentHigh)}/month.`,
     deposit: Math.round(p.price * 0.1),
     upfrontCosts: estimateStampDuty(p.price) + 2500,
+    estimatedMonthlyRent,
     commuteScore: Math.round((6 + (seed % 35) / 10) * 10) / 10,
     amenitiesScore: Math.round((6 + ((seed >> 3) % 35) / 10) * 10) / 10,
     valueForMoney: valueOptions[seed % valueOptions.length],
@@ -108,10 +117,10 @@ export function buildBuyerAnalysis(p: ImportedProperty): BuyerAnalysis {
       "Verify the local council tax band",
     ],
     suggestions: [
+      `Typical rent here: ${gbp.format(rentLow)}-${gbp.format(rentHigh)}/month for ${p.beds} bed${p.beds > 1 ? "s" : ""}`,
       "Book a full structural survey before offering",
       "Request the property's EPC certificate",
-      "Ask about chain length and the seller's timeline",
-      "Get a mortgage Agreement in Principle before you offer",
+      `Popular areas nearby: ${market.popularAreas.slice(0, 3).join(", ")}`,
     ],
   };
 }

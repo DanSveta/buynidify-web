@@ -7,7 +7,7 @@ import Avatar from "../components/Avatar";
 import AgreementTimeline from "../components/AgreementTimeline";
 import { fallbackTenantProfile } from "../components/DealDetailPanel";
 import { minimalProfile, selfProfile, type PartyProfile, type PartyRole } from "../utils/profiles";
-import { checkForOffPlatformContact } from "../utils/contactFilter";
+import { checkForOffPlatformContact, OFF_PLATFORM_WARNING } from "../utils/contactFilter";
 
 // Platform-wide inbox, in three columns: conversations, the conversation
 // itself, and who you're talking to. The profile column is the point - on
@@ -79,7 +79,8 @@ export default function Messages() {
   // matters here specifically because one browser plays both sides: a
   // message sent as investor has to flip sides when you switch to tenant and
   // look at the same thread, instead of always reading as "me".
-  function isMine(m: { from: "me" | "them"; senderRole?: "investor" | "tenant" }) {
+  function isMine(m: { from: "me" | "them"; senderRole?: "investor" | "tenant" | "system" }) {
+    if (m.senderRole === "system") return false;
     if (m.senderRole) return m.senderRole === role;
     return m.from === "me";
   }
@@ -241,26 +242,39 @@ export default function Messages() {
               </div>
 
               <div className="flex-1 space-y-2 overflow-y-auto py-4">
-                {active.messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                      isMine(m)
-                        ? "ml-auto bg-brand-blue text-white"
-                        : "bg-brand-surface text-brand-ink"
-                    }`}
-                  >
-                    {m.body}
-                  </div>
-                ))}
+                {active.messages.map((m) =>
+                  m.senderRole === "system" ? (
+                    // Buynidify's own narration of a deal update - not a
+                    // message from either party, so it doesn't sit on
+                    // either side of the conversation like one.
+                    <div key={m.id} className="my-2 flex justify-center">
+                      <div className="flex max-w-[85%] items-start gap-2 rounded-full border border-brand-gold/40 bg-brand-gold/10 px-3.5 py-1.5 text-center text-xs font-medium text-brand-ink">
+                        <span aria-hidden className="text-brand-gold-dark">●</span>
+                        <span>{m.body}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key={m.id}
+                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                        isMine(m)
+                          ? "ml-auto bg-brand-blue text-white"
+                          : "bg-brand-surface text-brand-ink"
+                      }`}
+                    >
+                      {m.body}
+                    </div>
+                  )
+                )}
               </div>
 
               {blockedReasons && (
-                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-                  This message wasn't sent - it looks like it contains {blockedReasons.join(", ")}.
-                  For everyone's safety, contact details and other apps can't be shared here; keep
-                  the conversation on Buynidify and the team will help arrange next steps.
-                </p>
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                  <p className="font-semibold">
+                    This message wasn't sent - it looks like it contains {blockedReasons.join(", ")}.
+                  </p>
+                  <p className="mt-1">{OFF_PLATFORM_WARNING}</p>
+                </div>
               )}
               <div className="flex gap-2 border-t border-brand-border pt-3">
                 <input

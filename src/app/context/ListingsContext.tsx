@@ -156,8 +156,13 @@ export type Message = {
    *  of the conversation a message renders on: `from` was fixed at the
    *  moment it was sent and never rechecked, so a message you sent as
    *  investor still read as "me" after switching to your tenant persona -
-   *  the wrong side of the bubble and never counted as unread. */
-  senderRole?: "investor" | "tenant";
+   *  the wrong side of the bubble and never counted as unread.
+   *
+   *  "system" is neither party - it's Buynidify itself narrating a deal
+   *  update (stage advanced, deposit secured, etc). Before this existed that
+   *  narration was sent AS the investor, which made it look like the
+   *  investor was typing status updates about their own deal to themselves. */
+  senderRole?: "investor" | "tenant" | "system";
   body: string;
   sentAt: string;
 };
@@ -285,6 +290,9 @@ export type BuyerAnalysis = {
   summary: string;
   deposit: number;
   upfrontCosts: number;
+  /** What you'd likely pay to rent this once an investor buys it for you -
+   *  the whole point of a tenant analysing a property they don't own. */
+  estimatedMonthlyRent: number;
   commuteScore: number;
   amenitiesScore: number;
   valueForMoney: string;
@@ -349,6 +357,12 @@ export const agreementSteps = [
     actor: "Buynidify",
   },
   {
+    id: "viewing-arranged",
+    label: "Viewing arranged",
+    detail: "You (or your Buynidify coordinator) view the property before anything is signed.",
+    actor: "You",
+  },
+  {
     id: "terms-agreed",
     label: "Terms agreed",
     detail: "Rent, availability and tenancy length agreed between both sides.",
@@ -366,10 +380,37 @@ export const agreementSteps = [
     detail: "The tenant's commitment deposit is received and protected. You can buy with confidence.",
     actor: "Tenant",
   },
+  // The purchase itself, broken into the steps Andrew asked to see -
+  // "purchase in progress" on its own didn't tell either side what was
+  // actually happening for the weeks it takes to buy a property.
   {
-    id: "purchase",
-    label: "Purchase in progress",
-    detail: "You buy the property. Buynidify coordinates with your solicitor and the seller's agent.",
+    id: "offer-submitted",
+    label: "Offer submitted",
+    detail: "Your offer goes to the seller's agent. Deposit being secured is what triggers this.",
+    actor: "You",
+  },
+  {
+    id: "searches-survey",
+    label: "Searches & survey",
+    detail: "Local authority searches and a property survey are carried out before you commit further.",
+    actor: "You",
+  },
+  {
+    id: "mortgage-finalised",
+    label: "Mortgage finalised",
+    detail: "Your mortgage offer (if applicable) is confirmed and your solicitor has everything they need.",
+    actor: "You",
+  },
+  {
+    id: "contracts-exchanged",
+    label: "Contracts exchanged",
+    detail: "Contracts are exchanged with the seller. From here the sale is legally binding.",
+    actor: "You",
+  },
+  {
+    id: "completion",
+    label: "Completion",
+    detail: "The purchase completes and the property is legally yours.",
     actor: "You",
   },
   {
@@ -889,7 +930,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     // Thread id follows the property, the same way it does everywhere else -
     // one conversation per property, correct on both sides via senderRole.
     const threadId = property.owner === "investor" ? `investor-${property.id}` : `tenant-${property.id}`;
-    const senderRole: "investor" | "tenant" = by === "buynidify" ? "investor" : by;
+    // Buynidify-authored narration is neither party talking - it's the
+    // platform itself, and now renders that way (a centered system line)
+    // instead of masquerading as the investor.
+    const senderRole: "investor" | "tenant" | "system" = by === "buynidify" ? "system" : by;
     // The tenant on this deal is either you (the browser's own tenant
     // persona, walking the whole demo end to end) or a fake interested
     // tenant picked from the list - only in the first case should the
@@ -899,10 +943,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     const finalLabel = (finalStage ?? next).label;
     const finalDetail = (finalStage ?? next).detail;
     const line = skipToPurchase
-      ? `🎉 Deposit secured and protected — purchase is now in progress. Buynidify is coordinating with the solicitor and the seller's agent from here.`
+      ? `🎉 Deposit secured and protected. Purchase is now in progress - Buynidify is coordinating with the solicitor and the seller's agent from here.`
       : by === "buynidify"
         ? `Buynidify update: "${finalLabel}" - ${finalDetail}`
-        : `${next.label} ✓ — ${next.detail}`;
+        : `${next.label} ✓ - ${next.detail}`;
     // Only used the first time this thread gets created (a name/property
     // title mixed up here is how a conversation ended up with a property's
     // title sitting where a person's name should be, the first time
@@ -1035,7 +1079,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       selfDealing?: boolean;
     },
     body: string,
-    senderRole: "investor" | "tenant"
+    senderRole: "investor" | "tenant" | "system"
   ) {
     setThreads((list) => {
       const message = {

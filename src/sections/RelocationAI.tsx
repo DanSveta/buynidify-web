@@ -23,7 +23,17 @@ export default function RelocationAI() {
           local laws, and matches you with your perfect home across major
           cities worldwide.
         </p>
-        <Button variant="primary" className="mt-2">
+        {/* Opens in a new tab, on purpose - Relocate AI is built and dressed
+            as its own product (see src/pages/RelocateAI.tsx), not another
+            page inside this site's nav. */}
+        <Button
+          as="a"
+          href="/relocate-ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="primary"
+          className="mt-2"
+        >
           <ZapIcon className="h-4 w-4" />
           Launch Relocate AI
           <ArrowRightIcon />

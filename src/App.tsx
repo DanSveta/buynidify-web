@@ -8,6 +8,7 @@ import Partners from "./pages/Partners";
 import About from "./pages/About";
 import PropertyPage from "./pages/PropertyPage";
 import JourneyOptions from "./pages/JourneyOptions";
+import RelocateAI from "./pages/RelocateAI";
 import AppLayout from "./app/AppLayout";
 import { RoleProvider } from "./app/context/RoleContext";
 import { ThemeProvider } from "./app/context/ThemeContext";
@@ -60,6 +61,10 @@ export default function App() {
               redesign - not linked in any nav, just a direct URL so Véta
               can compare the three directions side by side. */}
           <Route path="/journey-options" element={<JourneyOptions />} />
+          {/* Deliberately outside the public site's chrome - opened in a new
+              tab from "Launch Relocate AI" and built/styled to feel like its
+              own product, not another Buynidify page. See RelocateAI.tsx. */}
+          <Route path="/relocate-ai" element={<RelocateAI />} />
           {/* Browsing used to also live inside the gated dashboard at this
               path; it's now only here, in the public listings page, so a
               bookmark to the old portal URL still lands somewhere useful. */}

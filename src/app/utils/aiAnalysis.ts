@@ -45,6 +45,7 @@ const BUYER_SCHEMA = `{
   "summary": string (1-2 sentences),
   "deposit": number (GBP, 10% of price unless you have reason to vary it),
   "upfrontCosts": number (GBP, stamp duty + fees estimate),
+  "estimatedMonthlyRent": number (GBP, whole pounds - what a tenant would likely pay to rent this property if an investor bought it and let it out),
   "commuteScore": number (0-10, 1 decimal),
   "amenitiesScore": number (0-10, 1 decimal),
   "valueForMoney": "Fair" | "Good" | "Excellent",
@@ -125,7 +126,7 @@ function validate(kind: "investor" | "buyer", obj: any): obj is Record<string, u
   if (!obj || typeof obj !== "object") return false;
   const common = ["summary", "positives", "consider", "suggestions"];
   const investorFields = ["monthlyRent", "grossYield", "netYield", "locationScore", "rentalDemand", "timeToLet", "tenantProfile"];
-  const buyerFields = ["deposit", "upfrontCosts", "commuteScore", "amenitiesScore", "valueForMoney"];
+  const buyerFields = ["deposit", "upfrontCosts", "estimatedMonthlyRent", "commuteScore", "amenitiesScore", "valueForMoney"];
   const required = kind === "investor" ? [...common, ...investorFields] : [...common, ...buyerFields];
   return required.every((k) => k in obj);
 }

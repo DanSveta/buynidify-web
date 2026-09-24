@@ -27,15 +27,22 @@ const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
 // Named platforms people redirect to, plus generic "let's talk elsewhere"
 // phrasing. Word-boundary matched so "wine" doesn't trip "wa" etc.
 const PLATFORM_RE =
-  /\b(whats ?app|telegram|instagram|insta\b|snapchat|snap\b|signal|we ?chat|viber|imessage|skype|facebook messenger|fb messenger|line app)\b/i;
+  /\b(whats ?app|telegram|tg\b|instagram|insta\b|snapchat|snap\b|signal|we ?chat|viber|imessage|skype|facebook messenger|fb messenger|line app|discord|kik|google voice|google hangouts|hangouts|zalo|kakao ?talk|linkedin dm|dm me)\b/i;
 
 const REDIRECT_PHRASE_RE =
-  /\b(text me|call me|ring me|my number|reach me at|email me|off[\s-]?platform|outside (the )?(app|platform)|off the app)\b/i;
+  /\b(text me|call me|ring me|my number|reach me at|email me|off[\s-]?platform|outside (the )?(app|platform)|off the app|let'?s (talk|chat|move|continue) (on|via|over|through|elsewhere)|talk elsewhere|chat elsewhere|contact me (on|via|through)|message me (on|via|through)|find me on|add me on|connect (with me )?(on|via))\b/i;
 
 // A bare @handle (Instagram/Telegram-style) - deliberately narrow (letters,
 // numbers, dots, underscores, 3+ chars) so it doesn't catch "@" used
 // conversationally.
 const HANDLE_RE = /(^|\s)@[a-z0-9_.]{3,}\b/i;
+
+// The Upwork-style warning shown when a message gets blocked - not just
+// "this isn't allowed", but what happens if it keeps happening. Matches the
+// pattern those platforms use: name the risk (account action) plainly rather
+// than leaving people to guess whether it's a soft nudge or a real rule.
+export const OFF_PLATFORM_WARNING =
+  "Sharing contact details or trying to move the conversation off Buynidify isn't allowed - it's how people get scammed, and it's against our terms. Repeated attempts can get your account restricted or permanently banned.";
 
 export function checkForOffPlatformContact(text: string): ContactCheck {
   const reasons: string[] = [];

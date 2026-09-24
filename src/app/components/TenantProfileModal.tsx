@@ -104,10 +104,15 @@ export default function TenantProfileModal({
         {thread && thread.messages.length > 0 && (
           <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-brand-surface p-3">
             {thread.messages.map((m) => {
-              const fromInvestor = m.senderRole ? m.senderRole === "investor" : m.from === "me";
+              const label =
+                m.senderRole === "system"
+                  ? "Buynidify"
+                  : (m.senderRole ? m.senderRole === "investor" : m.from === "me")
+                    ? "You"
+                    : tenant.name;
               return (
                 <p key={m.id} className="mb-1 text-xs text-brand-ink">
-                  <span className="font-semibold">{fromInvestor ? "You" : tenant.name}:</span> {m.body}
+                  <span className="font-semibold">{label}:</span> {m.body}
                 </p>
               );
             })}

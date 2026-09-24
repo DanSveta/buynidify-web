@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supportCategories } from "../data/mockData";
+import { AGENT_NAME, AGENT_ROLE, supportReply, type SupportCategoryId } from "../../lib/supportAgent";
+import { avatarFor } from "../utils/avatars";
+import Avatar from "../components/Avatar";
+import { checkForOffPlatformContact, OFF_PLATFORM_WARNING } from "../utils/contactFilter";
+
+type ChatMessage = { from: "agent" | "user"; text: string };
 
 const rentHistory = [
   { month: "September 2026", amount: "£1,450", status: "Paid" },
@@ -8,11 +14,53 @@ const rentHistory = [
 ];
 
 export default function Support() {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      from: "agent",
+      text: `Hi, I'm ${AGENT_NAME} from Buynidify Support. Pick a topic below, or just type what's going on and I'll help.`,
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [blockedReasons, setBlockedReasons] = useState<string[] | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const category = supportCategories.find((c) => c.id === selectedCategory);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, typing]);
+
+  function sendAgentReply(reply: string) {
+    setTyping(true);
+    window.setTimeout(() => {
+      setMessages((m) => [...m, { from: "agent", text: reply }]);
+      setTyping(false);
+    }, 650);
+  }
+
+  function pickCategory(id: SupportCategoryId, label: string) {
+    setMessages((m) => [...m, { from: "user", text: label }]);
+    sendAgentReply(supportReply({ category: id }));
+  }
+
+  function submitFreeText(e: React.FormEvent) {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text) return;
+
+    // Support is still a Buynidify channel - the same off-platform rule
+    // that applies to investor/tenant messaging applies here too, so a
+    // frustrated tenant can't just slip their number to "the agent" instead.
+    const check = checkForOffPlatformContact(text);
+    if (check.blocked) {
+      setBlockedReasons(check.reasons);
+      return;
+    }
+    setBlockedReasons(null);
+
+    setMessages((m) => [...m, { from: "user", text }]);
+    setInput("");
+    sendAgentReply(supportReply({ freeText: text }));
+  }
 
   return (
     <div>
@@ -65,77 +113,81 @@ export default function Support() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-brand-border bg-white p-5">
-          <p className="mb-3 text-sm font-semibold text-brand-ink">
-            Ask for help
-          </p>
-
-          {submitted ? (
-            <div className="rounded-lg bg-brand-surface p-4 text-sm text-brand-ink">
-              <p className="font-semibold">Request sent ✓</p>
-              <p className="mt-1 text-brand-muted">
-                Routed to: {category?.routedTo}. You'll hear back shortly.
-              </p>
-              <button
-                onClick={() => {
-                  setSubmitted(false);
-                  setSelectedCategory(null);
-                  setMessage("");
-                }}
-                className="mt-3 text-xs font-medium text-brand-blue hover:underline"
-              >
-                Send another request
-              </button>
+        <div className="flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-white">
+          <div className="flex items-center gap-2.5 border-b border-brand-border p-4">
+            <Avatar name={AGENT_NAME} initials={AGENT_NAME.slice(0, 2)} photoUrl={avatarFor(AGENT_NAME)} size="sm" />
+            <div>
+              <p className="text-sm font-semibold text-brand-ink">{AGENT_NAME}</p>
+              <p className="text-xs text-brand-muted">{AGENT_ROLE} · usually replies in minutes</p>
             </div>
-          ) : (
-            <>
-              <p className="mb-2 text-xs text-brand-muted">
-                Pick a category so your request goes straight to the right
-                place.
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {supportCategories.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCategory(c.id)}
-                    className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                      selectedCategory === c.id
-                        ? "border-brand-blue bg-brand-blue-light"
-                        : "border-brand-border hover:border-brand-blue"
-                    }`}
-                  >
-                    <p className="font-semibold text-brand-ink">{c.label}</p>
-                    <p className="text-brand-muted">{c.description}</p>
-                  </button>
-                ))}
-              </div>
+          </div>
 
-              {selectedCategory && (
-                <form
-                  className="mt-4 flex flex-col gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    setSubmitted(true);
-                  }}
+          <div ref={scrollRef} className="max-h-[360px] flex-1 space-y-2.5 overflow-y-auto p-4">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                    m.from === "user"
+                      ? "bg-brand-blue text-white"
+                      : "border border-brand-border bg-brand-surface text-brand-ink"
+                  }`}
                 >
-                  <textarea
-                    required
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Briefly describe what's going on..."
-                    rows={3}
-                    className="rounded-lg border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-blue"
-                  />
-                  <button
-                    type="submit"
-                    className="self-start rounded-lg bg-brand-ink px-4 py-2 text-xs font-semibold text-white hover:bg-black"
-                  >
-                    Send request
-                  </button>
-                </form>
-              )}
-            </>
-          )}
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {typing && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl border border-brand-border bg-brand-surface px-3.5 py-2 text-sm text-brand-muted">
+                  {AGENT_NAME} is typing…
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-brand-border p-4">
+            {blockedReasons && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                <p className="font-semibold">
+                  That message wasn't sent - it looks like it contains {blockedReasons.join(", ")}.
+                </p>
+                <p className="mt-1">{OFF_PLATFORM_WARNING}</p>
+              </div>
+            )}
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
+              Quick topics
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {supportCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => pickCategory(c.id as SupportCategoryId, c.label)}
+                  className="rounded-full border border-brand-border px-3 py-1.5 text-xs font-medium text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={submitFreeText} className="mt-3 flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (blockedReasons) setBlockedReasons(null);
+                }}
+                placeholder="Or type your question…"
+                className="flex-1 rounded-lg border border-brand-border px-3 py-2 text-sm outline-none focus:border-brand-blue"
+              />
+              <button
+                type="submit"
+                className="rounded-lg bg-brand-ink px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+              >
+                Send
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
