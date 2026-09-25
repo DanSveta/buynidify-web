@@ -68,8 +68,8 @@ export default function Support() {
         My Home &amp; Support
       </h1>
       <p className="mt-1 text-brand-muted">
-        Your lease, rent history, and a fast way to get help when something's
-        wrong.
+        Your lease, rent history, and Buynidify's 24/7 AI Support for a fast
+        answer when something's wrong.
       </p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
@@ -114,11 +114,24 @@ export default function Support() {
         </div>
 
         <div className="flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-white">
+          {/* Explicit "this is AI" badge - the chat below used to give no
+              visual cue it's the platform's 24/7 AI Support (Andrew's own
+              feedback), so it just read as a generic human support inbox. */}
           <div className="flex items-center gap-2.5 border-b border-brand-border p-4">
-            <Avatar name={AGENT_NAME} initials={AGENT_NAME.slice(0, 2)} photoUrl={avatarFor(AGENT_NAME)} size="sm" />
-            <div>
-              <p className="text-sm font-semibold text-brand-ink">{AGENT_NAME}</p>
-              <p className="text-xs text-brand-muted">{AGENT_ROLE} · usually replies in minutes</p>
+            <div className="relative flex-shrink-0">
+              <Avatar name={AGENT_NAME} initials={AGENT_NAME.slice(0, 2)} photoUrl={avatarFor(AGENT_NAME)} size="sm" />
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-gold text-[9px] font-bold text-brand-ink ring-2 ring-white">
+                ✦
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-ink">
+                {AGENT_NAME}
+                <span className="rounded-full bg-brand-blue-light px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-blue">
+                  AI
+                </span>
+              </p>
+              <p className="text-xs text-brand-muted">{AGENT_ROLE}</p>
             </div>
           </div>
 

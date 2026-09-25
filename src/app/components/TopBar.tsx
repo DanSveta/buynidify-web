@@ -123,9 +123,9 @@ function pagesFor(role: string): Hit[] {
   const common: Hit[] = [
     { label: "Overview", sub: "Page", to: "/app/overview" },
     { label: "Messages", sub: "Page", to: "/app/messages" },
-    { label: "Platform listings", sub: "Page", to: "/listings" },
+    { label: "Search / Platform listings", sub: "Page", to: "/search" },
     { label: "Profile", sub: "Page", to: "/app/profile" },
-    { label: "Relocate AI", sub: "Page", to: "/app/relocate" },
+    { label: "Relocate AI", sub: "Page", to: "/relocate-ai" },
     { label: "Help & Support", sub: "Page", to: "/app/support" },
     { label: "Settings", sub: "Page", to: "/app/profile" },
   ];

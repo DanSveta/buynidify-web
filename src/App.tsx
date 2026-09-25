@@ -1,10 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import PublicSearch from "./pages/PublicSearch";
-import PublicListings from "./pages/PublicListings";
 import PublicMyProperties from "./pages/PublicMyProperties";
 import Partners from "./pages/Partners";
+import Corporate from "./pages/Corporate";
 import About from "./pages/About";
 import PropertyPage from "./pages/PropertyPage";
 import JourneyOptions from "./pages/JourneyOptions";
@@ -42,15 +43,23 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
-          {/* Open to everyone: no account, no dashboard. */}
+          <Route path="/signup" element={<Signup />} />
+          {/* Open to everyone: no account, no dashboard. Search now also
+              carries the full browsing grid that used to be its own
+              "Platform listings" page - the two were doing almost the same
+              job, so /listings just lands you on the merged page. */}
           <Route path="/search" element={<PublicSearch />} />
-          <Route path="/listings" element={<PublicListings />} />
+          <Route path="/listings" element={<Navigate to="/search" replace />} />
           {/* Same page as the portal's, in the public chrome, so a property
               you added while signed out behaves identically. */}
           <Route path="/my-properties" element={<PublicMyProperties />} />
           {/* The service-company application page Andrew asked for - open
               to anyone, no account needed to apply. */}
           <Route path="/partners" element={<Partners />} />
+          {/* Corporate no longer "signs in" to a fake dashboard - it's a
+              real B2B offering, explained here, ending in a contact form
+              rather than a logged-in product. */}
+          <Route path="/corporate" element={<Corporate />} />
           <Route path="/about" element={<About />} />
           {/* One property, one page, opened in a new tab from any card -
               everything about it in one place instead of scattered across

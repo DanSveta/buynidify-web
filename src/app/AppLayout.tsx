@@ -198,8 +198,10 @@ export default function AppLayout() {
           ]
         : [{ to: "/app/b2b", label: "Company Dashboard" }];
 
-  const secondaryNavItems: NavItem[] =
-    role === "corporate" ? [] : [{ to: "/app/relocate", label: "Relocate AI", highlight: true }];
+  // Points at the real standalone Relocate AI product (/relocate-ai), not
+  // the old /app/relocate stub - a much thinner, unbranded 4-question demo
+  // that predates the real thing and was still what this nav item opened.
+  const showRelocateLink = role !== "corporate";
 
   return (
     // data-theme is set here rather than on <html> so dark mode covers the
@@ -278,37 +280,40 @@ export default function AppLayout() {
         </a>
 
         <nav className="mt-1 flex flex-col gap-1">
-          {secondaryNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                item.highlight ? highlightClasses(isActive) : linkClasses(isActive)
-              }
+          {showRelocateLink && (
+            <a
+              href="/relocate-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={highlightClasses(false)}
             >
               <span className="flex items-center gap-1.5">
-                {item.highlight && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-3.5 w-3.5"
-                  >
-                    <path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" />
-                  </svg>
-                )}
-                {item.label}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                >
+                  <path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" />
+                </svg>
+                Relocate AI
               </span>
-            </NavLink>
-          ))}
+              <span aria-hidden className="ml-auto text-xs opacity-60">↗</span>
+            </a>
+          )}
           {role && (
             <button
               onClick={() => {
                 logout();
-                navigate("/app/search");
+                // Used to send you to /app/search - a dashboard-chrome page
+                // that assumes you're signed in, right after signing out.
+                // The public /search page (now also the platform listings
+                // browse grid) is the right landing spot once you're signed
+                // out.
+                navigate("/search");
               }}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-brand-muted transition-colors hover:bg-brand-surface hover:text-brand-ink"
             >

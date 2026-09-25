@@ -2,34 +2,36 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LocationCombobox from "../components/LocationCombobox";
 import PropertyTypeCombobox from "../components/PropertyTypeCombobox";
-import PriceRangeCombobox from "../components/PriceRangeCombobox";
 import { ArrowRightIcon, PinIcon, SearchIcon } from "../components/icons";
-import { priceRanges, ukCities } from "../lib/content";
+import { ukCities } from "../lib/content";
+import { digitsOnly, formatThousands } from "../lib/format";
 
-// Ranges come from the dropdown as text; the search page takes numbers.
-function parseRange(range: string): { min?: string; max?: string } {
-  const numbers = range.replace(/[^0-9-]/g, " ").split(/\s+/).filter(Boolean);
-  if (range.startsWith("Under")) return { max: numbers[0] };
-  if (range.endsWith("+")) return { min: numbers[0] };
-  if (numbers.length >= 2) return { min: numbers[0], max: numbers[1] };
-  return {};
-}
+const bedroomOptions = ["Any", "1", "2", "3", "4+"];
 
 export default function Hero() {
   const navigate = useNavigate();
-  const [location, setLocation] = useState("London, Greater London");
+  // Used to default to "London, Greater London" - reads like the search
+  // only really covers London. Empty, with the same "Anywhere in the UK"
+  // placeholder the /search page itself uses, matches what the site
+  // actually offers (nationwide) and keeps the two search bars consistent.
+  const [location, setLocation] = useState("");
   const [propertyType, setPropertyType] = useState("Any");
-  const [priceRange, setPriceRange] = useState(priceRanges[0]);
+  // Was a preset dropdown (Under £200k / £200k+ / ...) - a different control
+  // to the actual /search page's plain min/max fields, which was confusing
+  // when the two search bars didn't match. Same min/max text inputs here now.
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [bedrooms, setBedrooms] = useState("Any");
 
   function search(e: React.FormEvent) {
     e.preventDefault();
-    const { min, max } = parseRange(priceRange);
     const params = new URLSearchParams();
     // The combobox returns "London, Greater London"; the city alone matches.
     if (location) params.set("location", location.split(",")[0].trim());
     if (propertyType && propertyType !== "Any") params.set("type", propertyType);
-    if (min) params.set("min", min);
-    if (max) params.set("max", max);
+    if (priceMin) params.set("min", priceMin);
+    if (priceMax) params.set("max", priceMax);
+    if (bedrooms !== "Any") params.set("beds", bedrooms);
     navigate(`/search?${params.toString()}`);
   }
 
@@ -91,7 +93,59 @@ export default function Hero() {
               <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
                 Location
               </label>
-              <LocationCombobox options={ukCities} value={location} onChange={setLocation} />
+              <LocationCombobox
+                options={ukCities}
+                value={location}
+                onChange={setLocation}
+                placeholder="Anywhere in the UK"
+              />
+            </div>
+
+            {/* Same plain min/max text pair as the /search page - this used
+                to be a preset dropdown (Under £200k / £200k+ / ...), a
+                different control to what /search actually offers, which
+                made the two search bars feel inconsistent. */}
+            <div className="min-w-0 flex-1 rounded-[22px] px-4 py-3 text-left sm:px-6 transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
+                Price range
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-brand-muted">£</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatThousands(priceMin)}
+                  onChange={(e) => setPriceMin(digitsOnly(e.target.value))}
+                  placeholder="Min"
+                  className="w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-brand-ink outline-none placeholder:font-normal placeholder:text-brand-muted"
+                />
+                <span className="flex-shrink-0 text-xs text-brand-muted">to</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatThousands(priceMax)}
+                  onChange={(e) => setPriceMax(digitsOnly(e.target.value))}
+                  placeholder="Max"
+                  className="w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-brand-ink outline-none placeholder:font-normal placeholder:text-brand-muted"
+                />
+              </div>
+            </div>
+
+            <div className="min-w-0 flex-1 rounded-[22px] px-4 py-3 text-left sm:px-6 transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
+                Bedrooms
+              </label>
+              <select
+                value={bedrooms}
+                onChange={(e) => setBedrooms(e.target.value)}
+                className="w-full min-w-0 cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-brand-ink outline-none"
+              >
+                {bedroomOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b === "Any" ? "Any beds" : `${b} bed${b === "1" ? "" : "s"}`}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="min-w-0 flex-1 rounded-[22px] px-4 py-3 text-left sm:px-6 transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
@@ -99,13 +153,6 @@ export default function Hero() {
                 Property type
               </label>
               <PropertyTypeCombobox value={propertyType as never} onChange={(v) => setPropertyType(v)} />
-            </div>
-
-            <div className="min-w-0 flex-1 rounded-[22px] px-4 py-3 text-left sm:px-6 transition-colors hover:bg-black/[0.03] focus-within:bg-black/[0.03]">
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-brand-ink/50">
-                Price range
-              </label>
-              <PriceRangeCombobox options={priceRanges} defaultValue={priceRanges[0]} onChange={setPriceRange} />
             </div>
 
             <div className="pt-2 lg:pl-2 lg:pt-0">

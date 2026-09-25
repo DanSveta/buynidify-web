@@ -88,7 +88,7 @@ export default function Navbar() {
             Sign in
           </Link>
           <Link
-            to="/app/search"
+            to="/search"
             className="group hidden items-center gap-2.5 rounded-full bg-white py-2 pl-5 pr-2 text-[15px] font-semibold text-brand-ink transition-all duration-200 hover:shadow-lg sm:inline-flex"
           >
             Start searching
@@ -151,7 +151,7 @@ export default function Navbar() {
               Sign in
             </Link>
             <Link
-              to="/app/search"
+              to="/search"
               onClick={() => setOpen(false)}
               className="mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-white py-2 pl-5 pr-2 text-sm font-semibold text-brand-ink"
             >

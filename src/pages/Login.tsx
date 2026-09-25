@@ -1,126 +1,147 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useRole, type Role } from "../app/context/RoleContext";
-import {
-  CorporateIcon,
-  InvestorIcon,
-  TenantIcon,
-} from "../components/icons";
+import { CorporateIcon, InvestorIcon, TenantIcon } from "../components/icons";
 
-const scenarios: {
+// Redesigned to look like an ordinary email/password sign-in page - the
+// previous version was three big "pick your persona" cards with no sign-in
+// form at all, which read as obviously fake rather than a demo standing in
+// for a real product. The form above still isn't wired to a real backend
+// (there's nothing to check a password against), but it looks and behaves
+// like one: type anything, hit Sign in, land in the portal. The "Demo
+// accounts" panel below is the actual fast path for testing, same as
+// before, just relabelled to look like the quick-fill shortcuts a real demo
+// environment would offer.
+
+const demoAccounts: {
   role: Role;
-  title: string;
-  description: string;
-  destination: string;
+  label: string;
+  email: string;
   icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  iconColor: string;
 }[] = [
-  {
-    role: "investor",
-    title: "Investor",
-    description:
-      "AI yield analysis, portfolio matching, and pre-vetted tenants.",
-    destination: "/app/overview",
-    icon: InvestorIcon,
-  },
-  {
-    role: "tenant",
-    title: "Tenant",
-    description:
-      "Find your home. Smart search, affordability, and a transparent journey.",
-    destination: "/app/overview",
-    icon: TenantIcon,
-  },
-  {
-    role: "corporate",
-    title: "Corporate",
-    description: "Employee relocation, bulk housing, and HR reporting.",
-    destination: "/app/b2b",
-    icon: CorporateIcon,
-  },
+  { role: "investor", label: "Investor", email: "investor@demo.com", icon: InvestorIcon, iconBg: "bg-brand-blue", iconColor: "text-white" },
+  { role: "tenant", label: "Tenant", email: "tenant@demo.com", icon: TenantIcon, iconBg: "bg-brand-gold", iconColor: "text-brand-ink" },
+  { role: "corporate", label: "Corporate", email: "corporate@demo.com", icon: CorporateIcon, iconBg: "bg-emerald-600", iconColor: "text-white" },
 ];
 
 export default function Login() {
-  const { login, name: savedName } = useRole();
+  const { login } = useRole();
   const navigate = useNavigate();
-  const [name, setName] = useState(savedName);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  function handleSelect(role: Role, destination: string) {
-    // An empty name is fine - RoleContext falls back to a stand-in so the
-    // dashboard greeting is never blank.
-    login(role, name);
-    navigate(destination);
+  function enterAs(role: Role) {
+    if (role === "corporate") {
+      // Corporate doesn't sign in to a dashboard - it's a real service page
+      // ending in "talk to us", not a fake logged-in product.
+      navigate("/corporate");
+      return;
+    }
+    login(role);
+    navigate("/app/overview");
+  }
+
+  function submitSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    // Nothing to check a password against - this is a demo. Signing in
+    // lands you as an investor (the more common of the two real portals)
+    // so the button does something real rather than nothing.
+    enterAs("investor");
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-surface px-6 py-16">
-      <div className="w-full max-w-3xl">
-        <div className="mb-10 text-center">
-          <Link
-            to="/"
-            className="font-wordmark text-[2.1rem] font-medium leading-none tracking-[0.015em] text-brand-blue"
-          >
-            Buynidify
-          </Link>
-          <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-brand-ink">
-            How are you using Buynidify?
-          </h1>
-          <p className="mt-2 text-brand-muted">
-            Choose how you'd like to sign in. You can log out and pick a different one any time.
-          </p>
-          <p className="mt-3 text-sm text-brand-muted">
-            Just looking?{" "}
-            <Link to="/app/search" className="font-semibold text-brand-blue hover:underline">
-              Browse without an account →
-            </Link>
-          </p>
-        </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-brand-surface px-6 py-16">
+      <Link
+        to="/"
+        className="mb-8 font-wordmark text-[2.1rem] font-medium leading-none tracking-[0.015em] text-brand-blue"
+      >
+        Buynidify
+      </Link>
 
-        <div className="mx-auto mb-8 max-w-sm">
-          <label className="block text-xs font-semibold text-brand-muted">
-            Your name
+      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-brand-border bg-white shadow-xl shadow-brand-ink/5">
+        <div className="h-1.5 w-full bg-gradient-to-r from-brand-blue via-brand-blue to-brand-gold" />
+        <div className="p-8">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-brand-ink">
+          Welcome back
+        </h1>
+        <p className="mt-1 text-sm text-brand-muted">Sign in to your Buynidify account</p>
+
+        <form onSubmit={submitSignIn} className="mt-6 flex flex-col gap-4">
+          <label className="block text-sm font-medium text-brand-ink">
+            Email address
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Andrew"
-              className="mt-1 w-full rounded-lg border border-brand-border bg-white px-3 py-2.5 text-sm text-brand-ink outline-none focus:border-brand-blue"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="mt-1.5 w-full rounded-xl border border-brand-border bg-white px-4 py-2.5 text-sm text-brand-ink outline-none focus:border-brand-blue"
             />
           </label>
-          <p className="mt-1.5 text-center text-[11px] text-brand-muted">
-            Used to greet you in the portal. Optional.
-          </p>
+          <label className="block text-sm font-medium text-brand-ink">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="mt-1.5 w-full rounded-xl border border-brand-border bg-white px-4 py-2.5 text-sm text-brand-ink outline-none focus:border-brand-blue"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="mt-1 rounded-xl bg-gradient-to-r from-brand-blue to-brand-blue-dark py-3 text-sm font-semibold text-white shadow-md shadow-brand-blue/25 transition-transform hover:-translate-y-0.5 hover:shadow-lg"
+          >
+            Sign in
+          </button>
+        </form>
+
+        <div className="mt-6 rounded-2xl border border-brand-border bg-brand-surface p-4">
+          <p className="mb-2.5 text-sm font-semibold text-brand-blue">Demo accounts</p>
+          <div className="flex flex-col gap-1.5">
+            {demoAccounts.map((d) => {
+              const DemoIcon = d.icon;
+              return (
+                <button
+                  key={d.role}
+                  type="button"
+                  onClick={() => enterAs(d.role)}
+                  className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${d.iconBg} ${d.iconColor}`}>
+                    <DemoIcon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-brand-ink">{d.label}</span>
+                    <span className="block truncate text-xs text-brand-muted">{d.email}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-3">
-          {scenarios.map((s) => {
-            const Icon = s.icon;
-            return (
-              <button
-                key={s.role}
-                onClick={() => handleSelect(s.role, s.destination)}
-                className="group flex flex-col items-start rounded-2xl border border-brand-border bg-white p-6 text-left transition-colors hover:border-brand-blue hover:shadow-md"
-              >
-                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue text-white transition-colors group-hover:bg-brand-blue-dark">
-                  <Icon className="h-6 w-6" />
-                </span>
-                <p className="font-display text-lg font-semibold tracking-tight text-brand-ink">
-                  {s.title}
-                </p>
-                <p className="mt-1 text-sm text-brand-muted">
-                  {s.description}
-                </p>
-                <span className="mt-4 text-sm font-semibold text-brand-blue">
-                  Continue as {s.title} →
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="mt-8 text-center text-xs text-brand-muted">
-          This is a demo login, no real account or password required.
+        <p className="mt-6 text-center text-sm text-brand-muted">
+          No account?{" "}
+          <Link to="/signup" className="font-semibold text-brand-blue hover:underline">
+            Create one free
+          </Link>
         </p>
+        </div>
       </div>
+
+      <p className="mt-6 text-sm text-brand-muted">
+        Just looking?{" "}
+        <Link to="/search" className="font-semibold text-brand-blue hover:underline">
+          Browse without an account →
+        </Link>
+      </p>
+      <p className="mt-3 max-w-md text-center text-xs text-brand-muted">
+        This is a demo - Sign in and Create account don't check a real password. Use a Demo account
+        above for the fastest way in.
+      </p>
     </div>
   );
 }

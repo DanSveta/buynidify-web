@@ -2,7 +2,10 @@
 // by Andrew: Emil for 24/7 support (Relocate AI's persona is Linda, in
 // relocateAIEngine.ts).
 export const AGENT_NAME = "Emil";
-export const AGENT_ROLE = "Buynidify Support";
+// Was just "Buynidify Support" - Andrew's own feedback was that this page
+// didn't read as "our AI" at all, just a generic human support chat. This
+// is the site's own "24/7 AI Support" feature, so the page now says so.
+export const AGENT_ROLE = "AI Support · replies instantly, 24/7";
 
 export type SupportCategoryId = "maintenance" | "payments" | "lease" | "moving" | "other";
 

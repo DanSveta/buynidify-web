@@ -102,7 +102,7 @@ export default function PublicShell({
   active,
 }: {
   children: React.ReactNode;
-  active: "search" | "listings" | "my-properties" | "partners" | "about" | "property";
+  active: "search" | "listings" | "my-properties" | "partners" | "about" | "property" | "corporate";
 }) {
   const { role, name } = useRole();
   const { promptSignUp } = useAuthGate();
@@ -127,25 +127,18 @@ export default function PublicShell({
             <HeaderSearchPill />
           ) : (
             <nav className="ml-6 hidden items-center gap-6 md:flex">
+              {/* Search and Platform listings used to be two separate nav
+                  links to two pages doing almost the same job. Now one page
+                  (Search) covers both, so there's one link. */}
               <Link
                 to="/search"
                 className={
-                  active === "search"
+                  active === "search" || active === "listings"
                     ? "text-sm font-semibold text-brand-ink"
                     : "text-sm text-brand-muted transition-colors hover:text-brand-ink"
                 }
               >
                 Search
-              </Link>
-              <Link
-                to="/listings"
-                className={
-                  active === "listings"
-                    ? "text-sm font-semibold text-brand-ink"
-                    : "text-sm text-brand-muted transition-colors hover:text-brand-ink"
-                }
-              >
-                Platform listings
               </Link>
               {addedCount > 0 && !role && (
                 <Link
@@ -162,8 +155,15 @@ export default function PublicShell({
                   </span>
                 </Link>
               )}
+              {/* Everywhere except the landing page itself, "Relocate AI"
+                  should go straight to the product, not to a hash anchor on
+                  a section that only exists on "/" - that's the bug Andrew
+                  hit on Platform listings (the button "didn't work"): the
+                  hash never resolves once you're already on another page. */}
               <Link
-                to="/#relocate"
+                to="/relocate-ai"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-sm text-brand-muted transition-colors hover:text-brand-ink"
               >
                 Relocate AI
@@ -177,6 +177,16 @@ export default function PublicShell({
                 }
               >
                 Partners
+              </Link>
+              <Link
+                to="/corporate"
+                className={
+                  active === "corporate"
+                    ? "text-sm font-semibold text-brand-ink"
+                    : "text-sm text-brand-muted transition-colors hover:text-brand-ink"
+                }
+              >
+                For companies
               </Link>
               <Link
                 to="/about"
