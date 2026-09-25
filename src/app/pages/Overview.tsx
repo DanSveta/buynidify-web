@@ -73,65 +73,29 @@ function StatCard({
   );
 }
 
-function TrendChart({
-  values,
-  secondary,
-  labels,
-  primaryLabel,
-  secondaryLabel,
-  ariaLabel,
-}: {
-  values: number[];
-  secondary: number[];
-  labels: string[];
-  primaryLabel: string;
-  secondaryLabel: string;
-  ariaLabel: string;
-}) {
-  const width = 760;
-  const height = 240;
-  const padX = 28;
-  const padY = 24;
-  const all = [...values, ...secondary];
-  const min = Math.min(...all) * 0.9;
-  const max = Math.max(...all) * 1.08 || 1;
-  const points = (series: number[]) =>
-    series.map((value, index) => {
-      const x = padX + (index / Math.max(1, series.length - 1)) * (width - padX * 2);
-      const y = height - padY - ((value - min) / Math.max(1, max - min)) * (height - padY * 2);
-      return `${x},${y}`;
-    }).join(" ");
-  const primaryPoints = points(values);
-  const area = `${padX},${height - padY} ${primaryPoints} ${width - padX},${height - padY}`;
-
+/** A horizontal bar per real number - not a fabricated multi-week "trend"
+ *  (the previous chart invented 8 points of history with a hardcoded curve
+ *  shape, which is exactly the "random numbers, make them right" Véta
+ *  flagged: this demo has no actual day-by-day history to chart). Every
+ *  value here is one already computed from real account data. */
+function BreakdownBars({ rows }: { rows: { label: string; value: number }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-5 text-xs text-brand-muted">
-        <span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-brand-blue" />{primaryLabel}</span>
-        <span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-brand-gold" />{secondaryLabel}</span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height + 28}`} className="h-auto w-full" role="img" aria-label={ariaLabel}>
-        <defs>
-          <linearGradient id="overview-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--color-brand-blue)" stopOpacity=".22" />
-            <stop offset="1" stopColor="var(--color-brand-blue)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 1, 2, 3].map((line) => {
-          const y = padY + (line / 3) * (height - padY * 2);
-          return <line key={line} x1={padX} x2={width - padX} y1={y} y2={y} stroke="var(--color-brand-border)" strokeDasharray="5 6" />;
-        })}
-        <polygon points={area} fill="url(#overview-area)" />
-        <polyline points={primaryPoints} fill="none" stroke="var(--color-brand-blue)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points={points(secondary)} fill="none" stroke="var(--color-brand-gold)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {values.map((_value, index) => {
-          const [x, y] = primaryPoints.split(" ")[index].split(",").map(Number);
-          return <circle key={index} cx={x} cy={y} r="4" fill="white" stroke="var(--color-brand-blue)" strokeWidth="3" />;
-        })}
-        {labels.map((label, index) => (
-          <text key={label} x={padX + (index / Math.max(1, labels.length - 1)) * (width - padX * 2)} y={height + 18} textAnchor="middle" fill="var(--color-brand-muted)" fontSize="12">{label}</text>
-        ))}
-      </svg>
+    <div className="space-y-4">
+      {rows.map((r) => (
+        <div key={r.label}>
+          <div className="mb-1.5 flex items-baseline justify-between text-xs">
+            <span className="font-semibold text-brand-ink">{r.label}</span>
+            <span className="text-brand-muted">{r.value}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-brand-border">
+            <div
+              className="h-full rounded-full bg-brand-blue"
+              style={{ width: `${r.value === 0 ? 0 : Math.max(6, (r.value / max) * 100)}%` }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -238,11 +202,6 @@ function InvestorOverview() {
   const readyScore = mine.length === 0
     ? 0
     : Math.min(100, Math.round(((live.length + agreements.length * 2 + tenantSignals) / Math.max(1, mine.length * 3 + 2)) * 100));
-  const base = Math.max(1500, projectedRent);
-  const chartValues = [0.42, 0.49, 0.57, 0.62, 0.72, 0.79, 0.9, 1].map((n) => Math.round(base * n));
-  const conservative = chartValues.map((value, index) => Math.round(value * (0.82 + index * 0.012)));
-  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-
   const needsAnalysis = mine.filter((property) => !property.analysis);
   const needsPublishing = mine.filter((property) => property.analysis && !property.published);
   const incoming = connections.filter((connection) => connection.kind === "listing" && connection.by === "tenant" && !connection.accepted);
@@ -263,8 +222,17 @@ function InvestorOverview() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
-          <SectionTitle title="Rental opportunity outlook" subtitle="Projected monthly rent across the opportunities you are tracking." to="/app/my-properties" link="Open portfolio" />
-          <div className="mt-6"><TrendChart values={chartValues} secondary={conservative} labels={labels} primaryLabel="Projected rent" secondaryLabel="Conservative target" ariaLabel="Projected rental income trend" /></div>
+          <SectionTitle title="Portfolio breakdown" subtitle="Where your own properties actually stand right now." to="/app/my-properties" link="Open portfolio" />
+          <div className="mt-6">
+            <BreakdownBars
+              rows={[
+                { label: "Your properties", value: mine.length },
+                { label: "Published to tenants", value: live.length },
+                { label: "Tenant signals", value: tenantSignals },
+                { label: "Agreements in progress", value: agreements.length },
+              ]}
+            />
+          </div>
         </section>
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
           <SectionTitle title="Pipeline readiness" subtitle="How close your own properties are to a secured tenancy." />
@@ -327,8 +295,6 @@ function TenantOverview() {
       property.agreement && property.agreement.tenantId === "you" && property.agreement.stage !== "tenancy-active"
   ).length;
   const readiness = requests.length === 0 ? 50 : Math.min(100, 55 + requests.filter((property) => property.analysis).length * 12 + mutualMatches * 15);
-  const momentum = [2, 3, 3, 5, 4, 6, 7, Math.max(8, investorListings.length + tenantInterest.length)];
-  const target = momentum.map((value, index) => Math.max(1, value - 1 + (index % 3 === 0 ? 1 : 0)));
 
   return (
     <div>
@@ -346,8 +312,17 @@ function TenantOverview() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
-          <SectionTitle title="Your search momentum" subtitle="New suitable homes and investor responses over recent weeks." to="/app/search" link="Continue searching" />
-          <div className="mt-6"><TrendChart values={momentum} secondary={target} labels={["W1", "W2", "W3", "W4", "W5", "W6", "W7", "Now"]} primaryLabel="Suitable homes" secondaryLabel="Investor responses" ariaLabel="Suitable homes and investor response trend" /></div>
+          <SectionTitle title="Search breakdown" subtitle="Where your home search actually stands right now." to="/app/search" link="Continue searching" />
+          <div className="mt-6">
+            <BreakdownBars
+              rows={[
+                { label: "Homes available to browse", value: investorListings.length },
+                { label: "Homes requested", value: requests.length },
+                { label: "Interest sent", value: tenantInterest.length },
+                { label: "Investor responses", value: investorResponses.length },
+              ]}
+            />
+          </div>
         </section>
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
           <SectionTitle title="Ready to move" subtitle="Your progress toward a confident application." />

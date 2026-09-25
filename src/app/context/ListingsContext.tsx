@@ -259,11 +259,22 @@ export type ConnectionRecord = {
   /** The other side said yes. This is what makes it a mutual match. */
   accepted: boolean;
   acceptedAt?: string;
+  /** Set once either side has ended this approach without it becoming a
+   *  match. Kept (not deleted) so it can show up in an Archive section
+   *  instead of just vanishing - a rejected approach is still a fact worth
+   *  seeing, distinct from one still pending. */
+  rejected?: boolean;
+  rejectedAt?: string;
+  /** Who ended it, from the connection's own "by" side.
+   *  "sender" - the side that reached out (`by`) pulled it back themselves.
+   *  "recipient" - the other side said no. */
+  rejectedBy?: "sender" | "recipient";
 };
 
-export type ConnectionStatus = "sent" | "nudged" | "matched";
+export type ConnectionStatus = "sent" | "nudged" | "matched" | "withdrawn" | "declined";
 
 export function statusOfConnection(c: ConnectionRecord): ConnectionStatus {
+  if (c.rejected) return c.rejectedBy === "recipient" ? "declined" : "withdrawn";
   if (c.accepted) return "matched";
   return c.nudges > 0 ? "nudged" : "sent";
 }
@@ -582,7 +593,10 @@ type ListingsContextValue = {
   nudgeConnection: (id: string) => void;
   /** Say yes to an approach. This is what creates a mutual match. */
   acceptConnection: (id: string) => void;
+  /** Pull back an approach you sent, before the other side has answered. */
   withdrawConnection: (id: string) => void;
+  /** Say no to an approach that landed on you. */
+  declineConnection: (id: string) => void;
   // Messaging between the two sides.
   threads: MessageThread[];
   threadFor: (counterpartyId: string) => MessageThread | undefined;
@@ -715,12 +729,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     setLegacyResponses([]);
   }, [legacyInterest, legacyResponses, setConnections, setLegacyInterest, setLegacyResponses]);
 
+  // Rejected (withdrawn/declined) connections don't count as live interest -
+  // a withdrawn "Express interest" shouldn't keep showing you as interested,
+  // and a declined demand response shouldn't keep the investor marked as
+  // having responded.
   const tenantInterestIds = useMemo(
-    () => new Set(connections.filter((c) => c.kind === "listing").map((c) => c.id)),
+    () => new Set(connections.filter((c) => c.kind === "listing" && !c.rejected).map((c) => c.id)),
     [connections]
   );
   const investorResponseIds = useMemo(
-    () => new Set(connections.filter((c) => c.kind === "demand").map((c) => c.id)),
+    () => new Set(connections.filter((c) => c.kind === "demand" && !c.rejected).map((c) => c.id)),
     [connections]
   );
 
@@ -795,14 +813,30 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   }
 
   function openConnection(id: string, kind: "listing" | "demand", by: "tenant" | "investor") {
-    setConnections((list) =>
-      list.some((c) => c.id === id)
-        ? list
-        : [
-            ...list,
-            { id, kind, by, at: new Date().toISOString(), nudges: 0, accepted: false },
-          ]
-    );
+    setConnections((list) => {
+      const existing = list.find((c) => c.id === id);
+      if (!existing) {
+        return [...list, { id, kind, by, at: new Date().toISOString(), nudges: 0, accepted: false }];
+      }
+      // Re-approaching after an earlier withdrawal/decline starts a fresh,
+      // live connection rather than leaving the old rejection stuck in the
+      // way of trying again.
+      if (existing.rejected) {
+        return list.map((c) =>
+          c.id === id
+            ? {
+                id,
+                kind,
+                by,
+                at: new Date().toISOString(),
+                nudges: 0,
+                accepted: false,
+              }
+            : c
+        );
+      }
+      return list;
+    });
   }
 
   function expressInterestInListing(id: string) {
@@ -895,8 +929,26 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /** Pulling back your own approach. Kept in the list, marked rejected, so
+   *  it moves to the Archive instead of disappearing - and so the other
+   *  side (you, on the other persona) can see it was withdrawn rather than
+   *  just finding it gone. */
   function withdrawConnection(id: string) {
-    setConnections((list) => list.filter((c) => c.id !== id));
+    patchConnection(id, {
+      rejected: true,
+      rejectedAt: new Date().toISOString(),
+      rejectedBy: "sender",
+    });
+  }
+
+  /** Saying no to an approach that landed on you. Same archive treatment as
+   *  withdrawing, just from the other side of the connection. */
+  function declineConnection(id: string) {
+    patchConnection(id, {
+      rejected: true,
+      rejectedAt: new Date().toISOString(),
+      rejectedBy: "recipient",
+    });
   }
 
   /** Chasing someone who hasn't replied.
@@ -1056,11 +1108,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       : isCompletion
         ? "investor"
         : senderRole;
-    // "update" only for the faceless Buynidify cards - the deposit and
-    // completion lines are chat (voiced as tenant/investor) but still carry
-    // a property card, since they're exactly the moments Véta wants "a
-    // little more information: how much" attached.
-    const messageKind: Message["kind"] = by === "buynidify" && !skipToPurchase && !isCompletion ? "update" : "chat";
+    // Every deal-progress narration renders as an update card, whoever it's
+    // voiced as - per Véta, a plain chat bubble reading "Searches & survey
+    // ✓" (or a deposit line with no visual weight) is not clear enough that
+    // this is the deal progressing rather than someone typing. The card's
+    // badge (Buynidify / tenant / investor) is what shows the voice instead.
+    const messageKind: Message["kind"] = "update";
     // Only used the first time this thread gets created (a name/property
     // title mixed up here is how a conversation ended up with a property's
     // title sitting where a person's name should be, the first time
@@ -1281,6 +1334,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         nudgeConnection,
         acceptConnection,
         withdrawConnection,
+        declineConnection,
         threads,
         threadFor,
         isThreadUnread,

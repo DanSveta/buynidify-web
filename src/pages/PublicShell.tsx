@@ -110,7 +110,7 @@ export default function PublicShell({
   // raw one, so the header avatar can't show different initials/no photo
   // from what Profile itself displays.
   const { fullName } = useProfile();
-  const { promptSignUp } = useAuthGate();
+  const { promptSignUp, promptLogin } = useAuthGate();
   const { importedProperties } = useListings();
   // Only worth a nav slot once you have something in there.
   const addedCount = importedProperties.filter((p) => p.owner === "guest").length;
@@ -217,12 +217,13 @@ export default function PublicShell({
               </Link>
             ) : (
               <>
-                <Link
-                  to="/login"
+                <button
+                  type="button"
+                  onClick={() => promptLogin()}
                   className="hidden rounded-full px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-surface sm:block"
                 >
                   Sign in
-                </Link>
+                </button>
                 <button
                   type="button"
                   onClick={promptSignUp}

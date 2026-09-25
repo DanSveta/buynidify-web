@@ -424,6 +424,7 @@ function AgentCard({
   interestCount,
   interestLabel,
   interestZeroLabel,
+  interestPeople,
   note,
 }: {
   profile: PartyProfile;
@@ -431,12 +432,16 @@ function AgentCard({
   /** Stretches to match the height of the photo it sits beside in the hero
    *  row, instead of only being as tall as its own content. */
   fill?: boolean;
-  /** How many other people are interested in this listing/request - shown
-   *  as an anonymized cluster (no names, no photos), since this card is
-   *  what a stranger sees, not the owner. Omit to hide the row entirely. */
+  /** How many other people are interested in this listing/request. Omit to
+   *  hide the row entirely. */
   interestCount?: number;
   interestLabel?: string;
   interestZeroLabel?: string;
+  /** Real name/photo for up to 3 of them - this used to be withheld from a
+   *  stranger's view (blank silhouettes only), but that read as broken
+   *  ("empty profiles, no pictures") rather than as intentional privacy, so
+   *  it now shows the same real faces the owner's own view does. */
+  interestPeople?: { name: string; initials: string; photoUrl?: string }[];
   /** The note they wrote at publish time (parking, pets, etc), if any. */
   note?: string;
 }) {
@@ -506,6 +511,7 @@ function AgentCard({
             count={interestCount}
             label={interestLabel ?? "interested"}
             zeroLabel={interestZeroLabel ?? "No interest yet"}
+            people={interestPeople}
           />
         )}
 
@@ -617,14 +623,13 @@ function YourListingCard({
   );
 }
 
-/** A stacked-circle "N people interested" indicator - overlapping avatars
- *  (or, for a stranger looking at someone else's listing, overlapping blank
- *  silhouettes instead of real photos) plus a "+N" badge and a count, the
- *  way most marketplaces hint at demand without handing over who exactly is
- *  interested. Clickable (scrolls to the full named list) only when there's
- *  a list to scroll to - the owner's own view. A stranger sees the same
- *  shape but nothing to click through to, which is the point: enough to
- *  know it's wanted, not enough to know by whom. */
+/** A stacked-circle "N people interested" indicator - overlapping real
+ *  avatars plus a "+N" badge and a count. Used to withhold photos from a
+ *  stranger's view (blank silhouettes) as a privacy gesture, but that read
+ *  as a bug ("empty profiles, no pictures") rather than as intentional, so
+ *  both the owner's and a stranger's view now show the same real faces.
+ *  Clickable (scrolls to the full named list) only when there's a list to
+ *  scroll to - the owner's own view. */
 function InterestCluster({
   count,
   label,
@@ -1053,6 +1058,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
               interestCount={interested.length}
               interestLabel={interested.length === 1 ? "tenant interested" : "tenants interested"}
               interestZeroLabel="No interest yet - be the first"
+              interestPeople={interested.map((t) => ({ name: t.name, initials: t.initials, photoUrl: avatarFor(t.name) }))}
               fill
               onMessage={() =>
                 requireAccount({

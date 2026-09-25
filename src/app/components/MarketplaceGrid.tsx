@@ -138,10 +138,18 @@ function InvestorListingCard({ listing }: { listing: InvestorListing }) {
       </div>
 
       <div className="relative -mt-10 flex flex-1 flex-col rounded-3xl bg-white p-5">
-        <p className="font-display text-2xl font-semibold tracking-tight text-brand-blue">
-          {rent ? `${gbp.format(rent)}/mo` : "Rent on request"}
+        {/* Both figures matter here: the sale price is what the investor
+            pays, the rent is what it'll earn - showing only one left the
+            other side of the deal invisible on the card. */}
+        <p className="flex flex-wrap items-baseline gap-x-1.5 font-display text-xl font-semibold tracking-tight text-brand-ink">
+          {gbp.format(listing.price)}
+          <span className="text-sm font-medium text-brand-muted">to buy</span>
         </p>
-        <p className="mt-1 text-sm text-brand-muted">
+        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-base font-semibold text-brand-blue">
+          {rent ? `${gbp.format(rent)}/mo` : "Rent on request"}
+          <span className="text-xs font-medium text-brand-muted">rent target</span>
+        </p>
+        <p className="mt-1.5 text-sm text-brand-muted">
           {listing.address}, {listing.city}
         </p>
         <h3 className="mt-1 font-display text-base font-semibold text-brand-ink">
@@ -177,11 +185,18 @@ function TenantDemandCard({ demand }: { demand: TenantDemandEntry }) {
       </div>
 
       <div className="relative -mt-10 flex flex-1 flex-col rounded-3xl bg-white p-5">
-        <p className="font-display text-2xl font-semibold tracking-tight text-brand-blue">
-          {demand.targetPrice ? gbp.format(demand.targetPrice) : "Price on portal"}{" "}
-          <span className="text-xs font-medium text-brand-muted">to buy</span>
+        {/* Same pairing as the investor card, mirrored: the sale price an
+            investor would need to pay, and what this tenant is ready to pay
+            in rent once someone buys it for them. */}
+        <p className="flex flex-wrap items-baseline gap-x-1.5 font-display text-xl font-semibold tracking-tight text-brand-ink">
+          {demand.targetPrice ? gbp.format(demand.targetPrice) : "Price on portal"}
+          <span className="text-sm font-medium text-brand-muted">to buy</span>
         </p>
-        <p className="mt-1 text-sm text-brand-muted">{demand.city}, UK</p>
+        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-base font-semibold text-brand-blue">
+          {demand.targetRentPerMonth ? `${gbp.format(demand.targetRentPerMonth)}/mo` : "Rent flexible"}
+          <span className="text-xs font-medium text-brand-muted">tenant will pay</span>
+        </p>
+        <p className="mt-1.5 text-sm text-brand-muted">{demand.city}, UK</p>
         <h3 className="mt-1 font-display text-base font-semibold text-brand-ink">
           {demand.minBeds === 0 ? "Studio" : `${demand.minBeds}-bedroom`}{" "}
           {demand.propertyType.toLowerCase()} wanted

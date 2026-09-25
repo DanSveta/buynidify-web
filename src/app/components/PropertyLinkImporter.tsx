@@ -181,8 +181,8 @@ export default function PropertyLinkImporter({
           </p>
           <p className="text-xs text-brand-muted">
             {isInvestor
-              ? "Paste a link from Rightmove, Zoopla, OnTheMarket or PrimeLocation, run a rental-yield analysis, then publish it to tenants"
-              : "Paste a link from Rightmove, Zoopla, OnTheMarket or PrimeLocation, run an AI check, and investors can see you're interested"}
+              ? "Paste a link from Rightmove, Zoopla or OnTheMarket, run a rental-yield analysis, then publish it to tenants"
+              : "Paste a link from Rightmove, Zoopla or OnTheMarket, run an AI check, and investors can see you're interested"}
           </p>
         </div>
       </div>
@@ -207,8 +207,7 @@ export default function PropertyLinkImporter({
       </div>
       {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
       <p className="mt-2 text-[11px] text-brand-muted">
-        {MAX_IMPORTS - imports.length} of {MAX_IMPORTS} link slots remaining · Details are read from the listing
-        itself. The AI analysis is an estimate only, not financial or legal advice.
+        {imports.length}/{MAX_IMPORTS} added
       </p>
         </>
       )}

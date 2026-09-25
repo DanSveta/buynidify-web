@@ -133,15 +133,18 @@ function recentInvoices(amount: number) {
   });
 }
 
-function SaveButton({ saved, onClick }: { saved: boolean; onClick: () => void }) {
+function SaveButton({ saved, dirty, onClick }: { saved: boolean; dirty: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={!dirty && !saved}
       className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
         saved
           ? "bg-emerald-100 text-emerald-700"
-          : "bg-brand-blue text-white hover:bg-brand-blue-dark"
+          : dirty
+            ? "bg-brand-blue text-white hover:bg-brand-blue-dark"
+            : "cursor-not-allowed bg-brand-surface text-brand-muted"
       }`}
     >
       {saved ? "Saved" : "Save changes"}
@@ -161,15 +164,51 @@ export default function Profile() {
   const [addingCard, setAddingCard] = useState(false);
   const [newCard, setNewCard] = useState({ brand: "Visa", last4: "", expiry: "", holder: "" });
 
-  const checks = role === "investor" ? investorVerificationChecks : tenantVerificationChecks;
+  const baseChecks = role === "investor" ? investorVerificationChecks : tenantVerificationChecks;
+  // Local overrides for the demo verification flow - starting one moves it
+  // to "pending", then (as a stand-in for the real review turnaround) it
+  // resolves to verified a few seconds later so the whole flow is visible
+  // in one sitting rather than needing a second visit to see the result.
+  const [checkOverrides, setCheckOverrides] = useState<Record<string, VerificationCheck["status"]>>({});
+  const checks = baseChecks.map((c) => (checkOverrides[c.id] ? { ...c, status: checkOverrides[c.id] } : c));
   const verifiedCount = checks.filter((c) => c.status === "verified").length;
   const kycComplete = verifiedCount === checks.length;
+
+  function startVerification(id: string) {
+    setCheckOverrides((prev) => ({ ...prev, [id]: "pending" }));
+    window.setTimeout(() => {
+      setCheckOverrides((prev) => ({ ...prev, [id]: "verified" }));
+    }, 3000);
+  }
 
   function set(patch: Partial<UserProfile>) {
     setDraft((d) => ({ ...d, ...patch }));
     setSavedPersonal(false);
     setSavedAddress(false);
   }
+
+  // Only the fields each section's own save button actually writes count
+  // toward whether that section is "dirty" - editing the address shouldn't
+  // light up the personal-details Save button, and vice versa.
+  const personalFields: (keyof UserProfile)[] = [
+    "firstName",
+    "middleName",
+    "lastName",
+    "dateOfBirth",
+    "email",
+    "phone",
+    "phoneAlt",
+    "occupation",
+  ];
+  const addressFields: (keyof UserProfile)[] = [
+    "addressLine1",
+    "addressLine2",
+    "city",
+    "postcode",
+    "country",
+  ];
+  const personalDirty = personalFields.some((f) => draft[f] !== profile[f]);
+  const addressDirty = addressFields.some((f) => draft[f] !== profile[f]);
 
   function savePersonal() {
     updateProfile({
@@ -295,7 +334,7 @@ export default function Profile() {
             id="personal"
             title="Personal details"
             description="Your legal name as it appears on your identity documents."
-            action={<SaveButton saved={savedPersonal} onClick={savePersonal} />}
+            action={<SaveButton saved={savedPersonal} dirty={personalDirty} onClick={savePersonal} />}
           >
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="First name" value={draft.firstName} onChange={(v) => set({ firstName: v })} />
@@ -355,7 +394,7 @@ export default function Profile() {
             id="address"
             title="Address"
             description="Your correspondence address, used on tenancy and purchase paperwork."
-            action={<SaveButton saved={savedAddress} onClick={saveAddress} />}
+            action={<SaveButton saved={savedAddress} dirty={addressDirty} onClick={saveAddress} />}
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
@@ -404,9 +443,11 @@ export default function Profile() {
                     {check.status !== "verified" && (
                       <button
                         type="button"
-                        className="rounded-lg border border-brand-border px-3 py-1 text-[11px] font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+                        disabled={check.status === "pending"}
+                        onClick={() => startVerification(check.id)}
+                        className="rounded-lg border border-brand-border px-3 py-1 text-[11px] font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {check.status === "pending" ? "Check status" : "Complete now"}
+                        {check.status === "pending" ? "Reviewing..." : "Start verification"}
                       </button>
                     )}
                     <span

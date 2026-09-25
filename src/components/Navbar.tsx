@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRightIcon, ZapIcon } from "./icons";
+import { useAuthGate } from "../app/context/AuthGateContext";
 
 // Floating glass pill rather than a full-width bar.
 //
@@ -10,6 +11,7 @@ import { ArrowRightIcon, ZapIcon } from "./icons";
 // once you scroll past the hero onto the white sections, the same treatment
 // would leave white text on near-white. So the tint deepens on scroll.
 export default function Navbar() {
+  const { promptLogin } = useAuthGate();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -81,12 +83,13 @@ export default function Navbar() {
         <div className="flex items-center gap-4">
           {/* Sign in sits with Get started, not out with the section links -
               they're the two account actions. */}
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => promptLogin()}
             className="hidden text-[15px] text-white/70 transition-colors hover:text-white sm:block"
           >
             Sign in
-          </Link>
+          </button>
           <Link
             to="/search"
             className="group hidden items-center gap-2.5 rounded-full bg-white py-2 pl-5 pr-2 text-[15px] font-semibold text-brand-ink transition-all duration-200 hover:shadow-lg sm:inline-flex"
@@ -147,9 +150,16 @@ export default function Navbar() {
             >
               About
             </Link>
-            <Link to="/login" className="text-sm text-white/80" onClick={() => setOpen(false)}>
+            <button
+              type="button"
+              className="text-left text-sm text-white/80"
+              onClick={() => {
+                setOpen(false);
+                promptLogin();
+              }}
+            >
               Sign in
-            </Link>
+            </button>
             <Link
               to="/search"
               onClick={() => setOpen(false)}

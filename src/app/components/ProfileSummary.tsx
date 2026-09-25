@@ -1,5 +1,6 @@
 import type { PartyProfile } from "../utils/profiles";
 import { roleStyles } from "./ProfileBody";
+import Avatar from "./Avatar";
 
 // Compact profile for the Messages column. Same data as the full ProfilePanel,
 // but laid out to be read in one go rather than scrolled: verification becomes
@@ -42,9 +43,7 @@ export default function ProfileSummary({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
-        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-blue text-sm font-bold text-white">
-          {profile.initials}
-        </span>
+        <Avatar name={profile.name} initials={profile.initials} photoUrl={profile.photoUrl} size="md" />
         <div className="min-w-0">
           <p className="font-display text-base font-semibold leading-tight text-brand-ink">
             {profile.name}

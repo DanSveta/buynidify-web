@@ -279,8 +279,16 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const { fullName } = useProfile();
   const { promptSignUp } = useAuthGate();
   const { dark, toggleDark } = useTheme();
-  const { threads, matches, investorListings, tenantDemand, interestedTenantsFor, hasInvestorResponded, unreadThreadCount } =
-    useListings();
+  const {
+    threads,
+    matches,
+    connections,
+    investorListings,
+    tenantDemand,
+    interestedTenantsFor,
+    hasInvestorResponded,
+    unreadThreadCount,
+  } = useListings();
 
   const [openPanel, setOpenPanel] = useState<"bell" | "avatar" | null>(null);
   const [readIds, setReadIds] = usePersistedState<string[]>("buynidify:read-notifications", []);
@@ -357,6 +365,33 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
         });
     }
 
+    // Either side ending an approach is news to the other side - the one who
+    // reached out learns it was declined, the one who received it learns it
+    // was pulled back. Both land in the same Archive the notification links
+    // to, so there's always something real to find there.
+    connections
+      .filter((c) => c.rejected && (role === "investor" || role === "tenant"))
+      .forEach((c) => {
+        const notifyMe =
+          (c.rejectedBy === "recipient" && role === c.by) ||
+          (c.rejectedBy === "sender" && role !== c.by);
+        if (!notifyMe) return;
+        const listing = c.kind === "listing" ? investorListings.find((l) => l.id === c.id) : undefined;
+        const demand = c.kind === "demand" ? tenantDemand.find((d) => d.id === c.id) : undefined;
+        const body = listing
+          ? listing.address
+          : demand
+            ? `${demand.minBeds === 0 ? "Studio" : `${demand.minBeds}-bedroom`} ${demand.propertyType.toLowerCase()} in ${demand.city}`
+            : "A property";
+        out.push({
+          id: `rejected-${c.id}-${c.rejectedAt}`,
+          title: c.rejectedBy === "recipient" ? "Your request was declined" : "A request was withdrawn",
+          body,
+          to: `/app/matches?open=${encodeURIComponent(c.id)}&tab=archive`,
+          icon: "🗂",
+        });
+      });
+
     threads.forEach((t) => {
       const last = t.messages[t.messages.length - 1];
       if (last && last.from === "them") {
@@ -373,7 +408,16 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
     });
 
     return out.slice(0, 8);
-  }, [matches, threads, role, investorListings, interestedTenantsFor, tenantDemand, hasInvestorResponded]);
+  }, [
+    matches,
+    threads,
+    role,
+    connections,
+    investorListings,
+    interestedTenantsFor,
+    tenantDemand,
+    hasInvestorResponded,
+  ]);
 
   const unread = notes.filter((n) => !readIds.includes(n.id));
 

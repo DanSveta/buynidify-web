@@ -222,7 +222,7 @@ export default function AgreementTimeline({
               <button
                 type="button"
                 onClick={() => advance(fixedActorFor(next.actor))}
-                className={`mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                className={`mt-2 w-full cursor-pointer rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
                   nextActor === "buynidify"
                     ? "bg-red-600 text-white hover:bg-red-700"
                     : "bg-brand-blue text-white hover:bg-brand-blue-dark"
@@ -300,7 +300,7 @@ export default function AgreementTimeline({
               <button
                 type="button"
                 onClick={() => setPurchaseExpanded((v) => !v)}
-                className="flex w-full items-start gap-3 rounded-lg text-left transition-colors hover:bg-brand-surface"
+                className="flex w-full cursor-pointer items-start gap-3 rounded-lg text-left transition-colors hover:bg-brand-surface"
               >
                 <span
                   className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${

@@ -241,16 +241,6 @@ function portalUrl(portal: "rightmove" | "zoopla" | "onthemarket", p: PortalSear
   return `https://www.onthemarket.com/${path}/property/${locationSlug(p.location)}/${query ? `?${query}` : ""}`;
 }
 
-// Opens all three at once. Browsers can be strict about multiple windows
-// from one click, but this fires all three synchronously inside the actual
-// click handler (not delayed/async), which is what keeps a browser from
-// treating the 2nd and 3rd as unrequested popups.
-function openAllPortals(p: PortalSearchParams) {
-  (["rightmove", "zoopla", "onthemarket"] as const).forEach((portal) => {
-    window.open(portalUrl(portal, p), "_blank", "noopener,noreferrer");
-  });
-}
-
 // One neutral tone for all three badges - previously each portal got its
 // own brand color (green/purple/orange), which read as a loud, mismatched
 // row sitting under an otherwise calm, monochrome search bar. Same ink tone
@@ -349,18 +339,16 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
 
   return (
     <div>
+      {/* One line, not a headline plus a restating subline underneath - the
+          headline alone says "for sale" now, so there's nothing left for a
+          second line to add. */}
       <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">
         {chrome === "public"
-          ? "Search UK property"
+          ? "Search UK properties for sale"
           : isInvestor
-            ? "Search Properties"
-            : "Find a Home to Buy"}
+            ? "Search properties for sale"
+            : "Search homes for sale"}
       </h1>
-      <p className="mt-1 text-brand-muted">
-        {isInvestor
-          ? "Properties for sale, ready for you to buy and bring onto the platform."
-          : "Homes for sale, matched to what you're looking to buy."}
-      </p>
 
       {/* SEARCH CONSOLE
           Fields filter Buynidify's own listings live, further down. "Search
@@ -491,22 +479,6 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
                 </a>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                openAllPortals({
-                  transactionType,
-                  location: effectiveLocation,
-                  priceMin,
-                  priceMax,
-                  bedrooms,
-                  propertyType: portalPropertyType,
-                })
-              }
-              className="mt-2 w-full rounded-xl border border-brand-border py-2.5 text-sm font-semibold text-brand-blue transition-colors hover:bg-brand-blue-light"
-            >
-              Check all three platforms ↗
-            </button>
           </div>
         )}
       </div>
@@ -522,7 +494,7 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
       {myImports.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
           <span className="text-xs font-semibold text-brand-ink">
-            {myImports.length} you've added:
+            Yours ({myImports.length}):
           </span>
           <div className="flex flex-1 min-w-0 gap-2 overflow-x-auto">
             {myImports.slice(0, 6).map((p) => (
@@ -560,30 +532,22 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
         <h2 className="font-display text-lg font-semibold tracking-tight text-brand-ink">
           Platform listings
         </h2>
-        <p className="mt-1 text-sm text-brand-muted">
-          <span className="font-semibold text-brand-ink">
-            {platformListings.length + platformDemand.length}
-          </span>{" "}
-          {platformListings.length + platformDemand.length === 1 ? "match" : "matches"} on Buynidify itself
-          {effectiveLocation ? ` near ${effectiveLocation}` : " across the UK"}
-          {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
-            <>
-              {" · "}
-              <button
-                type="button"
-                onClick={() => {
-                  setPriceMin("");
-                  setPriceMax("");
-                  setBedrooms("Any");
-                  setPortalPropertyType("Any");
-                }}
-                className="font-semibold underline-offset-2 hover:text-brand-blue hover:underline"
-              >
-                Clear filters
-              </button>
-            </>
-          )}
-        </p>
+        {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
+          <p className="mt-1 text-sm text-brand-muted">
+            <button
+              type="button"
+              onClick={() => {
+                setPriceMin("");
+                setPriceMax("");
+                setBedrooms("Any");
+                setPortalPropertyType("Any");
+              }}
+              className="cursor-pointer font-semibold underline-offset-2 hover:text-brand-blue hover:underline"
+            >
+              Clear filters
+            </button>
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {([

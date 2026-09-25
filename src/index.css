@@ -96,6 +96,19 @@
   background-color: var(--color-brand-card);
 }
 
+/* A card placed inside another card (a message bubble inside the chat
+   panel, a ticket row inside the request-history panel, and so on) is
+   `bg-white` twice - in light mode that's fine, white-on-white is still
+   separated by a border/shadow, but in dark mode both resolve to the exact
+   same card color and the inner one disappears, reading as one flat dark
+   slab with no depth. Bumping anything nested one level up to the next
+   surface tone restores the same layering dark mode is supposed to have
+   everywhere else, without having to hunt down and reclass every nested
+   card by hand. */
+[data-theme="dark"] .bg-white .bg-white {
+  background-color: var(--color-brand-surface);
+}
+
 [data-theme="dark"] .text-brand-blue,
 [data-theme="dark"] .hover\:text-brand-blue:hover,
 [data-theme="dark"] .group:hover .group-hover\:text-brand-blue {
@@ -162,5 +175,16 @@
   h3,
   h4 {
     font-family: var(--font-display);
+  }
+  /* Tailwind v4's Preflight deliberately stopped forcing cursor: pointer on
+     buttons (matching the raw browser default, which on some platforms is
+     "default" rather than "pointer"). Across a whole app built mostly of
+     <button>s standing in for links, that reads as "nothing here is
+     clickable" - Véta flagged this app-wide, not on one page - so it's
+     restored globally here rather than patched button by button. Explicit
+     cursor-* utilities on individual elements still win over this. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }

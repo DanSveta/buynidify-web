@@ -19,9 +19,12 @@ const gbp = new Intl.NumberFormat("en-GB", {
 export default function FeaturedProperties() {
   const { investorListings, tenantDemand } = useListings();
 
+  // 3 + 3 = a clean two-row, 3-per-row grid at every size wider than
+  // mobile - 4 always left an awkward last row, and the two-line price
+  // label under it pushed the "View Details" button out of alignment.
   const listingCards = investorListings
     .filter((l) => l.source === "seed")
-    .slice(0, 2)
+    .slice(0, 3)
     .map((l) => ({
       id: l.id,
       href: `/property/${l.id}?kind=listing`,
@@ -34,13 +37,16 @@ export default function FeaturedProperties() {
       chip: l.monthlyRent
         ? `${((l.monthlyRent * 12) / l.price * 100).toFixed(1)}% yield`
         : "Investor listing",
-      priceLabel: l.monthlyRent ? "Rent" : "Asking price",
-      price: l.monthlyRent ? `${gbp.format(l.monthlyRent)}/mo` : gbp.format(l.price),
+      // Short enough to never wrap, even in a narrower 3-up card.
+      priceLabel: "Sale price · rent",
+      // Both figures on one card: what it costs to buy, and what it can
+      // earn - one without the other left half the deal invisible.
+      price: `${gbp.format(l.price)}${l.monthlyRent ? ` / ${gbp.format(l.monthlyRent)}/mo` : ""}`,
     }));
 
   const demandCards = tenantDemand
     .filter((d) => d.source === "seed")
-    .slice(0, 2)
+    .slice(0, 3)
     .map((d) => ({
       id: d.id,
       href: `/property/${d.id}?kind=demand`,
@@ -51,8 +57,10 @@ export default function FeaturedProperties() {
       beds: d.minBeds,
       baths: Math.max(1, Math.round(d.minBeds * 0.7) || 1),
       chip: "Buyer wanted",
-      priceLabel: "Target price",
-      price: d.targetPrice ? gbp.format(d.targetPrice) : "Price on portal",
+      priceLabel: "Target price · rent",
+      price: `${d.targetPrice ? gbp.format(d.targetPrice) : "Price on portal"}${
+        d.targetRentPerMonth ? ` / ${gbp.format(d.targetRentPerMonth)}/mo` : ""
+      }`,
     }));
 
   const featured = [...listingCards, ...demandCards];
@@ -72,9 +80,15 @@ export default function FeaturedProperties() {
           A look at what's actually on Buynidify right now - properties investors have listed and
           homes tenants are asking us to buy for them.
         </p>
+        <Link
+          to="/search"
+          className="mt-4 text-sm font-semibold text-brand-blue transition-colors hover:text-brand-blue-dark"
+        >
+          View all on Search →
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {featured.map((property) => (
           <Link
             key={property.id}
@@ -113,16 +127,22 @@ export default function FeaturedProperties() {
                   {property.chip}
                 </span>
               </div>
-              <div className="mt-5 flex items-center justify-between border-t border-brand-border pt-4">
-                <div>
+              {/* items-start, not items-center: the price line can still
+                  run to two lines on a narrow card (sale price + rent
+                  together), and centering against a two-line block was
+                  what pushed "View Details" out of alignment between
+                  cards. Anchoring both to the top keeps every card's
+                  button on the same line regardless of price length. */}
+              <div className="mt-5 flex items-start justify-between gap-3 border-t border-brand-border pt-4">
+                <div className="min-w-0">
                   <p className="text-xs text-brand-muted">
                     {property.priceLabel}
                   </p>
-                  <p className="font-display text-lg font-semibold tracking-tight text-brand-blue">
+                  <p className="font-display text-lg font-semibold leading-snug tracking-tight text-brand-blue">
                     {property.price}
                   </p>
                 </div>
-                <span className="rounded-lg border border-brand-border px-4 py-2 text-xs font-semibold text-brand-ink transition-colors group-hover:border-brand-blue group-hover:text-brand-blue">
+                <span className="flex-shrink-0 rounded-lg border border-brand-border px-4 py-2 text-xs font-semibold text-brand-ink transition-colors group-hover:border-brand-blue group-hover:text-brand-blue">
                   View Details
                 </span>
               </div>

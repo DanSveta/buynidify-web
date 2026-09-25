@@ -179,7 +179,6 @@ export default function AppLayout() {
     role === "investor"
       ? [
           { to: "/app/overview", label: "Overview" },
-          { to: "/app/search", label: "Search Properties" },
           { to: "/app/my-properties", label: "My Properties" },
           { to: "/app/shortlist", label: "Shortlist", heart: savedCount > 0 },
           { to: "/app/matches", label: "Mutual Matches", badge: matchedCount },
@@ -189,7 +188,6 @@ export default function AppLayout() {
       : role === "tenant"
         ? [
             { to: "/app/overview", label: "Overview" },
-            { to: "/app/search", label: "Find a Home" },
             { to: "/app/my-properties", label: "My Properties" },
             { to: "/app/shortlist", label: "Saved Homes", heart: savedCount > 0 },
             { to: "/app/matches", label: "Matched!", badge: matchedCount },

@@ -2,12 +2,74 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useListings, type MessageThread, type AgreementActor } from "../context/ListingsContext";
 import { useRole } from "../context/RoleContext";
+import { useProfile } from "../context/ProfileContext";
 import ProfileSummary from "../components/ProfileSummary";
 import Avatar from "../components/Avatar";
 import AgreementTimeline from "../components/AgreementTimeline";
 import { fallbackTenantProfile } from "../components/DealDetailPanel";
 import { minimalProfile, selfProfile, type PartyProfile, type PartyRole } from "../utils/profiles";
 import { checkForOffPlatformContact, OFF_PLATFORM_WARNING } from "../utils/contactFilter";
+import { initialsOf } from "../utils/greeting";
+import { avatarFor } from "../utils/avatars";
+
+/** The two people, and the property between them - Véta's reference was the
+ *  two-overlapping-avatars illustration, with a third, smaller circle for
+ *  the property sitting where the two meet, so a conversation is
+ *  recognisable as "this deal, about this place" at a glance, not just
+ *  "a chat with this person" - useful since the same two people could have
+ *  more than one property between them. Doubles as the property link: the
+ *  small circle is the click target when `propertyId` is given. */
+function PartyPropertyCluster({
+  mine,
+  counterparty,
+  propertyImage,
+  propertyId,
+  size = "sm",
+}: {
+  mine: { name: string; initials: string; photoUrl?: string };
+  counterparty: { name: string; initials: string; photoUrl?: string };
+  propertyImage?: string;
+  propertyId?: string;
+  size?: "sm" | "md";
+}) {
+  const avatarSize = size === "md" ? "md" : "sm";
+  // Three same-size circles in a triangle: the two people up top, the
+  // property below, all three overlapping in the middle - not a small
+  // badge floating above two bigger avatars, which read as an afterthought
+  // rather than an equal third piece of "who and what this is about".
+  const wrap = size === "md" ? "h-[68px] w-[78px]" : "h-[56px] w-[64px]";
+  const dim = size === "md" ? "h-11 w-11" : "h-9 w-9";
+  const propertyCircle = (
+    <span
+      className={`flex items-center justify-center overflow-hidden rounded-full bg-brand-gold ring-2 ring-white ${dim}`}
+    >
+      {propertyImage ? (
+        <img src={propertyImage} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span aria-hidden className="text-xs">🏠</span>
+      )}
+    </span>
+  );
+  return (
+    <span className={`relative flex-shrink-0 ${wrap}`}>
+      <span className="absolute left-0 top-0">
+        <Avatar name={mine.name} initials={mine.initials} photoUrl={mine.photoUrl} size={avatarSize} ring="ring-2 ring-white" />
+      </span>
+      <span className="absolute right-0 top-0">
+        <Avatar name={counterparty.name} initials={counterparty.initials} photoUrl={counterparty.photoUrl} size={avatarSize} ring="ring-2 ring-white" />
+      </span>
+      <span className="absolute bottom-0 left-1/2 z-10 -translate-x-1/2">
+        {propertyId ? (
+          <Link to={`/property/${propertyId}`} className="block cursor-pointer transition-transform hover:scale-105" title="View property">
+            {propertyCircle}
+          </Link>
+        ) : (
+          propertyCircle
+        )}
+      </span>
+    </span>
+  );
+}
 
 // Platform-wide inbox, in three columns: conversations, the conversation
 // itself, and who you're talking to. The profile column is the point - on
@@ -39,6 +101,12 @@ export default function Messages() {
     advanceAgreement,
   } = useListings();
   const { role, namesByRole } = useRole();
+  const { fullName: myName } = useProfile();
+  const myAvatar = {
+    name: myName || "You",
+    initials: initialsOf(myName || "You"),
+    photoUrl: avatarFor(myName || "You"),
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeId, setActiveId] = useState<string | null>(threads[0]?.counterpartyId ?? null);
   const [body, setBody] = useState("");
@@ -183,19 +251,27 @@ export default function Messages() {
               const isActive = active?.counterpartyId === t.counterpartyId;
               const unread = isThreadUnread(t);
               const counterparty = counterpartyFor(t);
+              const rowPropertyId = propertyIdFromCounterpartyId(t.counterpartyId);
+              const rowProperty = rowPropertyId
+                ? importedProperties.find((p) => p.id === rowPropertyId)
+                : undefined;
               return (
                 <button
                   key={t.counterpartyId}
                   type="button"
                   onClick={() => setActiveId(t.counterpartyId)}
-                  className={`flex items-start gap-2.5 rounded-xl p-2.5 text-left transition-colors ${
+                  className={`flex cursor-pointer items-center gap-3.5 rounded-xl p-2.5 text-left transition-colors ${
                     isActive ? "bg-brand-blue-light" : "hover:bg-brand-surface"
                   }`}
                 >
-                  <Avatar
-                    name={counterparty.name}
-                    initials={counterparty.profile.initials}
-                    photoUrl={counterparty.profile.photoUrl}
+                  <PartyPropertyCluster
+                    mine={myAvatar}
+                    counterparty={{
+                      name: counterparty.name,
+                      initials: counterparty.profile.initials,
+                      photoUrl: counterparty.profile.photoUrl,
+                    }}
+                    propertyImage={rowProperty?.imageUrl}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
@@ -207,7 +283,7 @@ export default function Messages() {
                       )}
                     </span>
                     {t.context && (
-                      <span className="block truncate text-[11px] text-brand-muted">{t.context}</span>
+                      <span className="block truncate text-[11px] font-bold text-brand-blue">{t.context}</span>
                     )}
                     {last && (
                       <span
@@ -227,18 +303,32 @@ export default function Messages() {
           {/* Conversation */}
           {active && activeCounterparty && (
             <div className="flex min-h-[380px] flex-col rounded-2xl border border-brand-border bg-white p-4 sm:p-5 lg:h-full lg:min-h-0">
-              <div className="flex items-center gap-3 border-b border-brand-border pb-3">
-                <Avatar
-                  name={activeCounterparty.name}
-                  initials={activeCounterparty.profile.initials}
-                  photoUrl={activeCounterparty.profile.photoUrl}
+              <div className="flex items-center gap-4 border-b border-brand-border pb-3">
+                <PartyPropertyCluster
+                  mine={myAvatar}
+                  counterparty={{
+                    name: activeCounterparty.name,
+                    initials: activeCounterparty.profile.initials,
+                    photoUrl: activeCounterparty.profile.photoUrl,
+                  }}
+                  propertyImage={relatedProperty?.imageUrl}
+                  propertyId={relatedProperty?.id}
+                  size="md"
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-display text-lg font-semibold leading-tight text-brand-ink">
                     {activeCounterparty.name}
                   </p>
-                  {active.context && <p className="truncate text-xs text-brand-muted">{active.context}</p>}
+                  {active.context && <p className="truncate text-xs font-bold text-brand-blue">{active.context}</p>}
                 </div>
+                {relatedProperty && (
+                  <Link
+                    to={`/property/${relatedProperty.id}`}
+                    className="flex-shrink-0 cursor-pointer whitespace-nowrap rounded-full bg-brand-ink px-3.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-blue"
+                  >
+                    View property →
+                  </Link>
+                )}
               </div>
 
               <div className="flex-1 space-y-2 overflow-y-auto py-4">
@@ -281,60 +371,66 @@ export default function Messages() {
                       </div>
                     </div>
                   ) : m.kind === "update" || (!m.kind && m.senderRole === "system") ? (
-                    // A Buynidify team update - deliberately NOT styled like
-                    // either party talking, so a stage-progress narration is
-                    // never mistaken for a message from the investor or
-                    // tenant. Carries the property so it's self-explanatory
-                    // out of context too.
-                    <div key={m.id} className="my-3 flex justify-center">
-                      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-gold/40 bg-white shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-brand-gold/30 bg-brand-gold/10 px-4 py-2">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-gold text-[10px] font-bold text-brand-ink">B</span>
-                          <p className="text-xs font-bold uppercase tracking-wide text-brand-gold-dark">Buynidify update</p>
-                          <span className="ml-auto text-[10px] text-brand-muted">
-                            {new Date(m.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                          </span>
-                        </div>
-                        <div className="flex gap-3 px-4 py-3">
-                          {m.card?.propertyImage && (
-                            <img
-                              src={m.card.propertyImage}
-                              alt=""
-                              className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
-                            />
-                          )}
-                          <div className="min-w-0">
-                            {m.card?.propertyTitle && (
-                              <p className="truncate text-[11px] font-semibold text-brand-muted">{m.card.propertyTitle}</p>
-                            )}
-                            <p className="text-sm text-brand-ink">{m.body}</p>
+                    // Every deal-progress narration - Buynidify's own steps
+                    // AND the ones voiced as the tenant/investor (deposit
+                    // paid, purchase complete) - renders in this same card
+                    // form. Per Véta: "all this... is updates", so nothing
+                    // about the deal progressing should look like an
+                    // ordinary chat bubble, whoever it's voiced as. The
+                    // badge and colour just say who it's from.
+                    (() => {
+                      const badge =
+                        m.senderRole === "tenant"
+                          ? { label: "Tenant update", tone: "border-brand-blue/30 bg-brand-blue-light/60", chip: "bg-brand-blue text-white", text: "text-brand-blue" }
+                          : m.senderRole === "investor"
+                            ? { label: "Investor update", tone: "border-brand-blue/30 bg-brand-blue-light/60", chip: "bg-brand-blue text-white", text: "text-brand-blue" }
+                            : { label: "Buynidify update", tone: "border-brand-gold/40 bg-brand-gold/10", chip: "bg-brand-gold text-brand-ink", text: "text-brand-gold-dark" };
+                      return (
+                        <div key={m.id} className="my-3 flex justify-center">
+                          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
+                            <div className={`flex items-center gap-2 border-b px-4 py-2 ${badge.tone}`}>
+                              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${badge.chip}`}>
+                                {badge.label[0]}
+                              </span>
+                              <p className={`text-xs font-bold uppercase tracking-wide ${badge.text}`}>{badge.label}</p>
+                              <span className="ml-auto text-[10px] text-brand-muted">
+                                {new Date(m.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                              </span>
+                            </div>
+                            <div className="flex gap-3 px-4 py-3">
+                              {m.card?.propertyImage && (
+                                <img
+                                  src={m.card.propertyImage}
+                                  alt=""
+                                  className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
+                                />
+                              )}
+                              <div className="min-w-0">
+                                {m.card?.propertyTitle && (
+                                  <p className="truncate text-[11px] font-semibold text-brand-muted">{m.card.propertyTitle}</p>
+                                )}
+                                <p className="text-sm text-brand-ink">{m.body}</p>
+                                {m.card?.amount !== undefined && (
+                                  <p className="mt-1 text-xs font-bold text-brand-ink">
+                                    £{m.card.amount.toLocaleString("en-GB")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()
                   ) : (
                     <div
                       key={m.id}
-                      className={`max-w-[80%] ${isMine(m) ? "ml-auto" : ""}`}
+                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                        isMine(m)
+                          ? "ml-auto bg-brand-blue text-white"
+                          : "border border-brand-border bg-brand-surface text-brand-ink"
+                      }`}
                     >
-                      <div
-                        className={`rounded-2xl px-4 py-2 text-sm ${
-                          isMine(m)
-                            ? "bg-brand-blue text-white"
-                            : "bg-brand-surface text-brand-ink"
-                        }`}
-                      >
-                        {m.body}
-                      </div>
-                      {/* Deposit-secured / purchase-complete: voiced as the
-                          tenant or investor themselves (not a Buynidify
-                          card), but Véta wanted "a little more information -
-                          how much" attached right where it's said. */}
-                      {m.card?.amount !== undefined && (
-                        <p className={`mt-1 text-[11px] font-medium text-brand-muted ${isMine(m) ? "text-right" : ""}`}>
-                          {m.card.propertyTitle ? `${m.card.propertyTitle} · ` : ""}£{m.card.amount.toLocaleString("en-GB")}
-                        </p>
-                      )}
+                      {m.body}
                     </div>
                   )
                 )}
@@ -363,7 +459,7 @@ export default function Messages() {
                 <button
                   type="button"
                   onClick={send}
-                  className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
+                  className="cursor-pointer rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
                 >
                   Send
                 </button>
@@ -420,8 +516,8 @@ export default function Messages() {
                 context={active?.context}
                 propertyHref={
                   <Link
-                    to={role === "tenant" ? "/listings" : "/app/my-properties"}
-                    className="mt-1 inline-block text-[11px] font-semibold text-brand-blue hover:underline"
+                    to={relatedProperty ? `/property/${relatedProperty.id}` : role === "tenant" ? "/listings" : "/app/my-properties"}
+                    className="mt-1 inline-block cursor-pointer text-[11px] font-semibold text-brand-blue hover:underline"
                   >
                     View property →
                   </Link>

@@ -566,12 +566,18 @@ function MyPropertiesInvestor() {
         </div>
       )}
 
-      <Link
-        to={searchPath}
+      {/* Opens Search in a new tab rather than navigating away from My
+          Properties - the dashboard no longer has its own Search Properties
+          tab, so this is the way in now, and a new tab means you don't lose
+          your place here to get to it. */}
+      <a
+        href={searchPath}
+        target="_blank"
+        rel="noopener noreferrer"
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
-        + Add a property
-      </Link>
+        + Add a property ↗
+      </a>
 
       {/* Pipeline summary */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -975,12 +981,14 @@ function MyPropertiesTenant() {
         investors, then see who's interested in buying it for you.
       </p>
 
-      <Link
-        to={searchPath}
+      <a
+        href={searchPath}
+        target="_blank"
+        rel="noopener noreferrer"
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
-        + Add a home
-      </Link>
+        + Add a home ↗
+      </a>
 
       {/* Pipeline summary */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -71,6 +71,13 @@ type Row = {
 };
 
 function StatusChip({ connection }: { connection: ConnectionRecord }) {
+  if (connection.rejected) {
+    return (
+      <span className="rounded-full bg-red-100 px-3 py-1 text-[11px] font-bold text-red-700">
+        {connection.rejectedBy === "recipient" ? "Declined" : "Withdrawn"}
+      </span>
+    );
+  }
   if (connection.accepted) {
     return (
       <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-700">
@@ -108,9 +115,10 @@ function MatchDetailPanel({
   onNudge,
   onMessage,
   onWithdraw,
+  onDecline,
 }: {
   row: Row;
-  tab: "matched" | "outgoing" | "incoming";
+  tab: "matched" | "outgoing" | "incoming" | "archive";
   interestedCount: number;
   /** Set once this match has moved into a real agreement - shows the live
    *  timeline right here instead of sending you off to look it up again. */
@@ -122,6 +130,7 @@ function MatchDetailPanel({
   onNudge: () => void;
   onMessage: () => void;
   onWithdraw: () => void;
+  onDecline: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -174,6 +183,18 @@ function MatchDetailPanel({
                     {interestedCount} tenants interested in this property in total.
                   </p>
                 )}
+                {row.connection.rejected && (
+                  <p className="mt-2 text-[11px] font-semibold text-red-600">
+                    {row.connection.rejectedBy === "recipient"
+                      ? tab === "archive" && row.connection.by !== viewerRole
+                        ? "You declined this."
+                        : "This was declined."
+                      : tab === "archive" && row.connection.by === viewerRole
+                        ? "You withdrew this."
+                        : "This was withdrawn."}
+                    {row.connection.rejectedAt ? ` ${agoLabel(row.connection.rejectedAt)}.` : ""}
+                  </p>
+                )}
                 {row.sourceUrl && (
                   <a
                     href={row.sourceUrl}
@@ -220,7 +241,7 @@ function MatchDetailPanel({
         )}
 
         <div className="flex flex-col gap-2 border-t border-brand-border p-5 sm:flex-row">
-          {row.connection.accepted ? null : tab === "incoming" ? (
+          {tab === "archive" ? null : row.connection.accepted ? null : tab === "incoming" ? (
             <button
               type="button"
               onClick={onAccept}
@@ -244,13 +265,13 @@ function MatchDetailPanel({
           >
             Message
           </button>
-          {!row.connection.accepted && (
+          {!row.connection.accepted && !row.connection.rejected && (
             <button
               type="button"
-              onClick={onWithdraw}
+              onClick={tab === "incoming" ? onDecline : onWithdraw}
               className="flex-shrink-0 text-center text-[11px] font-semibold text-brand-muted hover:text-red-600 sm:self-center"
             >
-              Withdraw this {tab === "incoming" ? "request" : "interest"}
+              {tab === "incoming" ? "Decline this request" : "Withdraw this interest"}
             </button>
           )}
         </div>
@@ -272,6 +293,7 @@ export default function Matches() {
     acceptConnection,
     nudgeConnection,
     withdrawConnection,
+    declineConnection,
     importedProperties,
     updateImportedProperty,
     advanceAgreement,
@@ -280,7 +302,7 @@ export default function Matches() {
 
   const viewerRole: "investor" | "tenant" = isTenant ? "tenant" : "investor";
 
-  const [tab, setTab] = useState<"matched" | "outgoing" | "incoming">("matched");
+  const [tab, setTab] = useState<"matched" | "outgoing" | "incoming" | "archive">("matched");
   const [openRow, setOpenRow] = useState<Row | null>(null);
   const [composing, setComposing] = useState<Row | null>(null);
   const [draft, setDraft] = useState("");
@@ -339,9 +361,9 @@ export default function Matches() {
               address: listing.address,
               city: listing.city,
               price: listing.price,
-              priceLabel: listing.monthlyRent
-                ? `${gbp.format(listing.monthlyRent)}/mo`
-                : gbp.format(listing.price),
+              priceLabel: `${gbp.format(listing.price)} to buy${
+                listing.monthlyRent ? ` / ${gbp.format(listing.monthlyRent)}/mo` : ""
+              }`,
               beds: listing.beds,
               propertyType: listing.type,
               imageUrl: listing.imageUrl ?? propertyImage(listing.id, listing.type),
@@ -374,7 +396,9 @@ export default function Matches() {
             address: "Requested",
             city: demand.city,
             price: demand.targetPrice ?? 0,
-            priceLabel: demand.targetPrice ? `${gbp.format(demand.targetPrice)} to buy` : "Price on portal",
+            priceLabel: `${demand.targetPrice ? `${gbp.format(demand.targetPrice)} to buy` : "Price on portal"}${
+              demand.targetRentPerMonth ? ` / ${gbp.format(demand.targetRentPerMonth)}/mo` : ""
+            }`,
             beds: demand.minBeds,
             propertyType: demand.propertyType,
             imageUrl: demand.imageUrl ?? propertyImage(demand.id, demand.propertyType),
@@ -393,19 +417,29 @@ export default function Matches() {
     [connections, investorListings, tenantDemand, namesByRole, isTenant]
   );
 
-  const matched = rows.filter((r) => r.connection.accepted);
+  const matched = rows.filter((r) => r.connection.accepted && !r.connection.rejected);
   // What you sent: tenants approach listings, investors approach demand.
   const outgoing = rows.filter(
     (r) =>
       !r.connection.accepted &&
+      !r.connection.rejected &&
       (isTenant ? r.connection.by === "tenant" : r.connection.by === "investor")
   );
   // What landed on you: someone approached a property you added.
   const incoming = rows.filter(
     (r) =>
       !r.connection.accepted &&
+      !r.connection.rejected &&
       r.yours &&
       (isTenant ? r.connection.by === "investor" : r.connection.by === "tenant")
+  );
+  // Anything either side has withdrawn or declined - kept visible, not
+  // deleted, so it's clear what became of it rather than it just vanishing.
+  const archived = rows.filter(
+    (r) =>
+      r.connection.rejected &&
+      ((isTenant ? r.connection.by === "tenant" : r.connection.by === "investor") ||
+        (r.yours && (isTenant ? r.connection.by === "investor" : r.connection.by === "tenant")))
   );
 
   // A notification (a new match, someone interested) links here as
@@ -417,7 +451,15 @@ export default function Matches() {
     if (!wanted) return;
     const row = rows.find((r) => r.connection.id === wanted);
     if (!row) return;
-    setTab(matched.includes(row) ? "matched" : incoming.includes(row) ? "incoming" : "outgoing");
+    setTab(
+      matched.includes(row)
+        ? "matched"
+        : incoming.includes(row)
+          ? "incoming"
+          : archived.includes(row)
+            ? "archive"
+            : "outgoing"
+    );
     setOpenRow(row);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -426,6 +468,21 @@ export default function Matches() {
     }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, searchParams]);
+
+  // A notification can also just point at a tab (e.g. "other tenants
+  // interested" with no single connection to open yet) via
+  // /app/matches?tab=incoming.
+  useEffect(() => {
+    const wanted = searchParams.get("tab");
+    if (wanted !== "matched" && wanted !== "outgoing" && wanted !== "incoming" && wanted !== "archive") return;
+    setTab(wanted);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (!next.get("open")) next.delete("tab");
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Real deals already under way - a matched connection becomes one once the
   // investor requests to proceed with a tenant, which is when it gets an
@@ -506,7 +563,22 @@ export default function Matches() {
       label: isTenant ? "Investors interested" : "Interest received",
       count: incoming.length,
     },
+    { id: "archive" as const, label: "Archive", count: archived.length },
   ];
+
+  // Own listings (published by you) that have interest showing elsewhere on
+  // the platform (Search, the property page) but no real request yet - the
+  // gap that made a property look "interested in" everywhere except here.
+  // Not a connection you can accept/decline (nobody's actually reached out
+  // through Buynidify yet), so it's shown as its own read-only group rather
+  // than mixed into the actionable Interest received list.
+  const passiveInterest = useMemo(() => {
+    if (isTenant) return [];
+    return investorListings
+      .filter((l) => l.source === "imported" && !connections.some((c) => c.id === l.id))
+      .map((l) => ({ listing: l, interested: interestedTenantsFor(l.id) }))
+      .filter((x) => x.interested.length > 0);
+  }, [isTenant, investorListings, connections, interestedTenantsFor]);
 
   /** Saying yes. For an investor accepting a tenant, the property also enters
    *  the agreement flow, so My Properties and the Deal Tracker pick it up
@@ -557,7 +629,8 @@ export default function Matches() {
     navigate("/app/messages");
   }
 
-  const shown = tab === "matched" ? matched : tab === "outgoing" ? outgoing : incoming;
+  const shown =
+    tab === "matched" ? matched : tab === "outgoing" ? outgoing : tab === "incoming" ? incoming : archived;
 
   return (
     <div>
@@ -565,9 +638,13 @@ export default function Matches() {
         {isTenant ? "Matched!" : "Mutual Matches"}
       </h1>
       <p className="mt-1 max-w-2xl text-brand-muted">
+        Every approach either side has made, and what became of it: what you've sent, what's landed on
+        you, and what's actually matched - both sides agreeing - below.
+      </p>
+      <p className="mt-1 max-w-2xl text-sm text-brand-muted">
         {isTenant
-          ? "A match happens when you register interest in a property and the investor agrees to proceed. Until they answer, the approach sits here so you can chase it."
-          : "A match happens when a tenant registers interest in one of your properties and you agree to proceed. Anything still waiting on either side is here too."}
+          ? "A match happens when you register interest in a property and the investor agrees to proceed."
+          : "A match happens when a tenant registers interest in one of your properties and you agree to proceed."}
       </p>
 
       <nav className="mt-6 flex flex-wrap gap-2">
@@ -595,30 +672,38 @@ export default function Matches() {
 
       {shown.length === 0 && tab !== "matched" ? (
         <div className="mt-6 rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">
-          {tab === "outgoing" ? (
-            isTenant ? (
-              "You haven't registered interest in anything yet."
-            ) : (
-              "You haven't approached any tenant requests yet."
-            )
-          ) : (
-            "Nobody has approached your properties yet."
-          )}
+          {tab === "outgoing"
+            ? isTenant
+              ? "You haven't registered interest in anything yet."
+              : "You haven't approached any tenant requests yet."
+            : tab === "archive"
+              ? "Nothing withdrawn or declined - anything you end stays here, not deleted."
+              : "Nobody has approached your properties yet."}
         </div>
       ) : (
         // A light grid of minimal cards - photo, headline, who and how it's
         // going - each one opening the full detail panel on click, rather
         // than trying to fit everything onto the card itself.
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {shown.map((row) => (
+          {shown.map((row) => {
+            const totalInterested =
+              row.connection.kind === "listing" ? interestedTenantsFor(row.connection.id).length : 0;
+            return (
             <button
               key={row.connection.id}
               type="button"
               onClick={() => setOpenRow(row)}
-              className="flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              className={`flex flex-col overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+                row.connection.rejected ? "border-red-200 opacity-75" : "border-brand-border"
+              }`}
             >
               <div className="relative h-40 w-full flex-shrink-0">
-                <img src={row.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img
+                  src={row.imageUrl}
+                  alt=""
+                  loading="lazy"
+                  className={`h-full w-full object-cover ${row.connection.rejected ? "grayscale" : ""}`}
+                />
                 <div className="absolute left-3 top-3">
                   <StatusChip connection={row.connection} />
                 </div>
@@ -641,12 +726,25 @@ export default function Matches() {
                     {row.yours && " (you)"}
                   </span>
                 </div>
-                <span className="mt-3 text-[11px] font-semibold text-brand-blue">
-                  View full details →
-                </span>
+                {tab === "incoming" && totalInterested > 1 && (
+                  <p className="mt-2 text-[11px] font-semibold text-brand-gold-dark">
+                    {totalInterested} tenants interested in this one
+                  </p>
+                )}
+                {row.connection.rejected ? (
+                  <span className="mt-3 text-[11px] font-semibold text-red-600">
+                    {row.connection.rejectedBy === "recipient" ? "Declined" : "Withdrawn"}
+                    {row.connection.rejectedAt ? ` · ${agoLabel(row.connection.rejectedAt)}` : ""}
+                  </span>
+                ) : (
+                  <span className="mt-3 text-[11px] font-semibold text-brand-blue">
+                    View full details →
+                  </span>
+                )}
               </div>
             </button>
-          ))}
+            );
+          })}
 
           {tab === "matched" &&
             dealCards.map((deal) => {
@@ -654,49 +752,101 @@ export default function Matches() {
               const stageLabel = running
                 ? "Tenant moved in"
                 : deal.agreement.stage.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+              // Same photo-first shape as the waiting/incoming cards above,
+              // rather than a bare text tile - a real deal has a real
+              // property behind it, so it should look like one.
               return (
                 <button
                   key={deal.id}
                   type="button"
                   onClick={() => setOpenDeal(deal)}
-                  className={`flex flex-col gap-3 rounded-2xl border bg-white p-5 text-left transition-colors hover:border-brand-blue ${
+                  className={`flex flex-col overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${
                     deal.isExample ? "border-dashed border-brand-gold" : "border-brand-border"
                   }`}
                 >
-                  <div className="flex items-center -space-x-2">
-                    <Avatar
-                      name={deal.investor.name}
-                      initials={deal.investor.initials}
-                      photoUrl={deal.investor.photoUrl}
-                      size="sm"
-                      ring="ring-2 ring-white"
-                    />
-                    <Avatar
-                      name={deal.tenant.name}
-                      initials={deal.tenant.initials}
-                      photoUrl={deal.tenant.photoUrl}
-                      size="sm"
-                      ring="ring-2 ring-white"
-                    />
+                  <div className="relative h-40 w-full flex-shrink-0">
+                    <img src={deal.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <span
+                      className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${
+                        deal.isExample
+                          ? "bg-brand-gold/90 text-brand-ink"
+                          : running
+                            ? "bg-emerald-600 text-white"
+                            : "bg-brand-blue text-white"
+                      }`}
+                    >
+                      {deal.isExample ? "Worked example" : stageLabel}
+                    </span>
+                    <div className="absolute bottom-3 right-3 flex items-center -space-x-2">
+                      <Avatar
+                        name={deal.investor.name}
+                        initials={deal.investor.initials}
+                        photoUrl={deal.investor.photoUrl}
+                        size="sm"
+                        ring="ring-2 ring-white"
+                      />
+                      <Avatar
+                        name={deal.tenant.name}
+                        initials={deal.tenant.initials}
+                        photoUrl={deal.tenant.photoUrl}
+                        size="sm"
+                        ring="ring-2 ring-white"
+                      />
+                    </div>
                   </div>
-                  <span
-                    className={`self-start rounded-full px-3 py-1 text-xs font-semibold ${
-                      deal.isExample
-                        ? "bg-brand-gold/20 text-brand-gold-dark"
-                        : running
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-brand-blue-light text-brand-blue"
-                    }`}
-                  >
-                    {deal.isExample ? "Worked example" : stageLabel}
-                  </span>
-                  <p className="font-display text-base font-semibold text-brand-ink">{deal.title}</p>
-                  <p className="text-sm text-brand-muted">
-                    {deal.location} · with {deal.tenant.name}
-                  </p>
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="font-display text-base font-semibold leading-snug text-brand-ink">
+                      {deal.title}
+                    </h3>
+                    <p className="mt-0.5 text-sm text-brand-muted">
+                      {deal.location} · {gbp.format(deal.price)}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2 border-t border-brand-border pt-3">
+                      <Avatar
+                        name={deal.tenant.name}
+                        initials={deal.tenant.initials}
+                        photoUrl={deal.tenant.photoUrl}
+                        size="xs"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-xs text-brand-muted">
+                        Tenant <span className="font-semibold text-brand-ink">{deal.tenant.name}</span>
+                      </span>
+                    </div>
+                  </div>
                 </button>
               );
             })}
+        </div>
+      )}
+
+      {tab === "incoming" && passiveInterest.length > 0 && (
+        <div className="mt-8">
+          <p className="text-sm font-semibold text-brand-ink">Other platform interest</p>
+          <p className="mt-0.5 text-xs text-brand-muted">
+            Showing up elsewhere on Buynidify, but nobody's sent a request yet - nothing to act on here.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {passiveInterest.map(({ listing, interested }) => (
+              <button
+                key={listing.id}
+                type="button"
+                onClick={() => navigate(`/property/${listing.id}?kind=listing`)}
+                className="flex items-center gap-3 rounded-xl border border-dashed border-brand-border bg-white p-3 text-left transition-colors hover:border-brand-blue"
+              >
+                <div className="flex -space-x-2">
+                  {interested.slice(0, 3).map((t) => (
+                    <Avatar key={t.id} name={t.name} initials={t.initials} size="xs" ring="ring-2 ring-white" />
+                  ))}
+                </div>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-brand-ink">{listing.address}</span>
+                  <span className="block text-[11px] text-brand-muted">
+                    {interested.length} tenant{interested.length === 1 ? "" : "s"} interested
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -716,6 +866,10 @@ export default function Matches() {
           onMessage={() => openMessage(openRow)}
           onWithdraw={() => {
             withdrawConnection(openRow.connection.id);
+            setOpenRow(null);
+          }}
+          onDecline={() => {
+            declineConnection(openRow.connection.id);
             setOpenRow(null);
           }}
         />

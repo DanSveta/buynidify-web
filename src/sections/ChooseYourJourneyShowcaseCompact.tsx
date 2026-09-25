@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import { ArrowRightIcon, CorporateIcon, InvestorIcon, TenantIcon } from "../components/icons";
 import { journeyCards, type JourneyCard } from "../lib/content";
 import { journeyImageUrl, onJourneyImageError } from "../lib/journeyImages";
+import { useAuthGate } from "../app/context/AuthGateContext";
 
 const icons: Record<JourneyCard["icon"], React.ComponentType<{ className?: string }>> = {
   investor: InvestorIcon,
@@ -20,6 +20,7 @@ const icons: Record<JourneyCard["icon"], React.ComponentType<{ className?: strin
 // a name, since a plain property photo alone doesn't say "this one's for
 // investors" on its own.
 export default function ChooseYourJourneyShowcaseCompact() {
+  const { promptLogin } = useAuthGate();
   const [activeId, setActiveId] = useState(journeyCards[0].id);
   const active = journeyCards.find((c) => c.id === activeId) ?? journeyCards[0];
   const ActiveIcon = icons[active.icon];
@@ -88,7 +89,10 @@ export default function ChooseYourJourneyShowcaseCompact() {
                 </span>
               ))}
             </div>
-            <Button as={Link} to="/login" variant="primary" className="mt-5 w-fit">
+            {/* Pops up over this same page instead of navigating away to a
+                separate sign-in page - per Véta, "whatever is below will
+                stay, and that will be on top". */}
+            <Button type="button" onClick={() => promptLogin(active.icon)} variant="primary" className="mt-5 w-fit">
               {active.cta}
               <ArrowRightIcon />
             </Button>
