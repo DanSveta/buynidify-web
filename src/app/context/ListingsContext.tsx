@@ -163,6 +163,25 @@ export type Message = {
    *  narration was sent AS the investor, which made it look like the
    *  investor was typing status updates about their own deal to themselves. */
   senderRole?: "investor" | "tenant" | "system";
+  /** Distinguishes a structured status card from ordinary chat, so Messages
+   *  can render them very differently - per Véta/Andrew, a property update
+   *  should never be mistakable for the two people just talking.
+   *  "update" - a Buynidify team card narrating a stage advancing.
+   *  "match" - the rich "you're matched" card sent once, when a connection
+   *  is accepted.
+   *  Absent (or "chat") - a normal message, including the tenant/investor's
+   *  own deposit-secured / purchase-complete lines, which are voiced as
+   *  them rather than as a Buynidify update. */
+  kind?: "update" | "match" | "chat";
+  /** Structured content for an "update" or "match" card - which property
+   *  it's about (for the photo/link) and, for deposit-secured, the amount. */
+  card?: {
+    propertyId?: string;
+    propertyTitle?: string;
+    propertyLocation?: string;
+    propertyImage?: string;
+    amount?: number;
+  };
   body: string;
   sentAt: string;
 };
@@ -357,12 +376,6 @@ export const agreementSteps = [
     actor: "Buynidify",
   },
   {
-    id: "viewing-arranged",
-    label: "Viewing arranged",
-    detail: "You (or your Buynidify coordinator) view the property before anything is signed.",
-    actor: "You",
-  },
-  {
     id: "terms-agreed",
     label: "Terms agreed",
     detail: "Rent, availability and tenancy length agreed between both sides.",
@@ -380,9 +393,13 @@ export const agreementSteps = [
     detail: "The tenant's commitment deposit is received and protected. You can buy with confidence.",
     actor: "Tenant",
   },
-  // The purchase itself, broken into the steps Andrew asked to see -
-  // "purchase in progress" on its own didn't tell either side what was
-  // actually happening for the weeks it takes to buy a property.
+  // The purchase itself, broken into the steps Andrew asked to see - but
+  // grouped as one collapsible line in AgreementTimeline (see PURCHASE_
+  // SUBSTAGE_IDS there), so the page doesn't read as 13 top-level points.
+  // "Contracts exchanged" is legal paperwork between the solicitors, not
+  // Buynidify's own contact-info rule about the two people never swapping
+  // details directly - the detail text below says that explicitly, since
+  // the label alone reads as the latter.
   {
     id: "offer-submitted",
     label: "Offer submitted",
@@ -398,19 +415,19 @@ export const agreementSteps = [
   {
     id: "mortgage-finalised",
     label: "Mortgage finalised",
-    detail: "Your mortgage offer (if applicable) is confirmed and your solicitor has everything they need.",
+    detail: "Your mortgage offer (if applicable) is confirmed - the last check before the sale is locked in.",
     actor: "You",
   },
   {
     id: "contracts-exchanged",
     label: "Contracts exchanged",
-    detail: "Contracts are exchanged with the seller. From here the sale is legally binding.",
+    detail: "Legal paperwork only - your solicitor and the seller's solicitor exchange contracts, making the sale binding. Nothing for you to send anyone; Buynidify and your solicitor handle it.",
     actor: "You",
   },
   {
     id: "completion",
     label: "Completion",
-    detail: "The purchase completes and the property is legally yours.",
+    detail: "Confirms the purchase is finished and the property is legally yours.",
     actor: "You",
   },
   {
@@ -808,8 +825,74 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     setConnections((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
 
+  /** Saying yes turns a one-sided approach into a mutual match - and per
+   *  Véta, that moment deserves more than a status flag flipping quietly.
+   *  Both sides get an Airbnb-style "you're matched" card, with the
+   *  property's photo and info attached, so it's unmistakable what just
+   *  got agreed to. */
   function acceptConnection(id: string) {
     patchConnection(id, { accepted: true, acceptedAt: new Date().toISOString() });
+
+    const connection = connections.find((c) => c.id === id);
+    if (!connection) return;
+
+    if (connection.kind === "listing") {
+      // The investor is the one accepting here - the tenant already
+      // committed by expressing interest - so the card is voiced as the
+      // investor and lands in the tenant's inbox.
+      const listing = investorListings.find((l) => l.id === id);
+      if (!listing) return;
+      const profile = investorProfileFor(listing.id, listing.city, listing.accepts);
+      receiveMessage(
+        {
+          id: `investor-${listing.id}`,
+          name: profile.name,
+          context: `${listing.address}, ${listing.city}`,
+          profile,
+          audience: "tenant",
+        },
+        `You're matched! I'd like to go ahead with ${listing.address}. Buynidify will be in touch to agree terms and take it from here.`,
+        "investor",
+        {
+          kind: "match",
+          card: {
+            propertyId: listing.id,
+            propertyTitle: listing.address,
+            propertyLocation: listing.city,
+            propertyImage: listing.imageUrl,
+          },
+        }
+      );
+    }
+
+    if (connection.kind === "demand") {
+      // The tenant is the one accepting here - the investor already
+      // committed by responding to the demand - so the card is voiced as
+      // the tenant and lands in the investor's inbox.
+      const demand = tenantDemand.find((d) => d.id === id);
+      if (!demand) return;
+      const profile = tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds);
+      receiveMessage(
+        {
+          id: `tenant-${demand.id}`,
+          name: profile.name,
+          context: `${demand.minBeds} bedroom ${demand.propertyType} wanted in ${demand.city}`,
+          profile,
+          audience: "investor",
+        },
+        `You're matched! I'd love to move forward on this one. Buynidify will be in touch to agree terms and take it from here.`,
+        "tenant",
+        {
+          kind: "match",
+          card: {
+            propertyId: demand.id,
+            propertyTitle: `${demand.minBeds} bed ${demand.propertyType} wanted`,
+            propertyLocation: demand.city,
+            propertyImage: demand.imageUrl,
+          },
+        }
+      );
+    }
   }
 
   function withdrawConnection(id: string) {
@@ -942,11 +1025,42 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     const selfDealing = agreement.tenantId === "you";
     const finalLabel = (finalStage ?? next).label;
     const finalDetail = (finalStage ?? next).detail;
+    const isCompletion = (finalStage ?? next).id === "completion";
+    // A UK tenancy deposit is capped at 5 weeks' rent - close enough for a
+    // demo figure, and answers "how much" without a real deposit field on
+    // the property. Falls back to a nominal amount when rent isn't set yet.
+    const depositAmount = property.published?.rent
+      ? Math.round((property.published.rent * 5) / 4.345)
+      : Math.round(property.price * 0.01);
+    const gbp = (n: number) => `£${n.toLocaleString("en-GB")}`;
+    const propertyCard = {
+      propertyId: property.id,
+      propertyTitle: property.title,
+      propertyLocation: property.location,
+      propertyImage: property.imageUrl,
+    };
+    // Two of these are voiced as the party they're actually about, not as a
+    // faceless Buynidify update - the tenant is the one paying the deposit,
+    // the investor is the one who just completed the purchase, per Véta:
+    // "it's okay that it's coming as a message from that tenant side". Every
+    // other stage-advance stays a Buynidify team card.
     const line = skipToPurchase
-      ? `🎉 Deposit secured and protected. Purchase is now in progress - Buynidify is coordinating with the solicitor and the seller's agent from here.`
-      : by === "buynidify"
-        ? `Buynidify update: "${finalLabel}" - ${finalDetail}`
-        : `${next.label} ✓ - ${next.detail}`;
+      ? `🎉 I've secured my commitment deposit of ${gbp(depositAmount)}, protected by Buynidify. The purchase is now moving forward.`
+      : isCompletion
+        ? `🏁 Completion is done - the purchase has gone through and the property is legally mine. Tenancy setup starts now.`
+        : by === "buynidify"
+          ? `"${finalLabel}" - ${finalDetail}`
+          : `${next.label} ✓ - ${next.detail}`;
+    const messageSenderRole: "investor" | "tenant" | "system" = skipToPurchase
+      ? "tenant"
+      : isCompletion
+        ? "investor"
+        : senderRole;
+    // "update" only for the faceless Buynidify cards - the deposit and
+    // completion lines are chat (voiced as tenant/investor) but still carry
+    // a property card, since they're exactly the moments Véta wants "a
+    // little more information: how much" attached.
+    const messageKind: Message["kind"] = by === "buynidify" && !skipToPurchase && !isCompletion ? "update" : "chat";
     // Only used the first time this thread gets created (a name/property
     // title mixed up here is how a conversation ended up with a property's
     // title sitting where a person's name should be, the first time
@@ -976,7 +1090,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         selfDealing,
       },
       line,
-      senderRole
+      messageSenderRole,
+      {
+        kind: messageKind,
+        // Every stage-advance narration carries the property card - it's
+        // what makes each one self-explanatory regardless of which page or
+        // thread it's read in. Only the deposit line carries an amount.
+        card: { ...propertyCard, amount: skipToPurchase ? depositAmount : undefined },
+      }
     );
   }
 
@@ -1079,13 +1200,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       selfDealing?: boolean;
     },
     body: string,
-    senderRole: "investor" | "tenant" | "system"
+    senderRole: "investor" | "tenant" | "system",
+    extra?: { kind?: Message["kind"]; card?: Message["card"] }
   ) {
     setThreads((list) => {
       const message = {
         id: `m-${Date.now()}-in`,
         from: "them" as const,
         senderRole,
+        kind: extra?.kind,
+        card: extra?.card,
         body,
         sentAt: new Date().toISOString(),
       };

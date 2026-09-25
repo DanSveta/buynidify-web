@@ -114,7 +114,7 @@ export function PurchaseAnalysisCard({
           <p className="mt-2 text-[11px] text-white/50">Based on advertised figures, not an independent valuation.</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-px bg-brand-border sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px bg-brand-border sm:grid-cols-3 lg:grid-cols-5">
           <div className="bg-white p-4">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-muted">Gross rental yield</p>
             <p className="mt-1 text-xl font-bold text-brand-gold-dark">{grossYield.toFixed(2)}%</p>
@@ -125,6 +125,15 @@ export function PurchaseAnalysisCard({
             >
               {belowMarket ? "Below market average" : "At or above market average"}
             </span>
+          </div>
+          {/* Missing from the collapsed view before - you had to expand the
+              full analysis just to see the rent the yield above is even
+              based on. Right after the yield now, since it's the number
+              that number depends on. */}
+          <div className="bg-white p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-muted">Est. monthly rent</p>
+            <p className="mt-1 text-xl font-bold text-brand-ink">{gbp.format(monthlyRent)}</p>
+            <p className="mt-1 text-[10px] text-brand-muted">Buynidify's estimate</p>
           </div>
           {pricePerSqft !== undefined && (
             <div className="bg-white p-4">

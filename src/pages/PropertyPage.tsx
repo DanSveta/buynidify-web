@@ -182,6 +182,11 @@ const Icon = {
       <path d="M7.6 13.4 4 9.8l1.2-1.2 2.4 2.4 6.8-6.8L15.6 5.4z" />
     </svg>
   ),
+  chat: (p: { className?: string }) => (
+    <svg {...iconProps} className={p.className}>
+      <path d="M4 5h16v11H8l-4 4V5Z" />
+    </svg>
+  ),
   sparkle: (p: { className?: string }) => (
     <svg {...iconProps} className={p.className} fill="currentColor" stroke="none">
       <path d="M12 2.5 13.9 9l6.5 1.9-6.5 1.9L12 19.3 10.1 12.8 3.6 10.9 10.1 9z" />
@@ -393,6 +398,25 @@ const NEARBY_CATEGORY_LABEL: Record<NearbyPlace["key"], string> = {
  *  than a bare name-and-badge row. The stats are genuine fields already on
  *  the profile (properties listed, member since), not invented for the
  *  occasion. */
+/** The note the owner wrote when publishing, shown as an actual message
+ *  bubble right next to their profile - not an italic quote buried in the
+ *  description further down the page, easy to miss and not obviously
+ *  connected to who wrote it. */
+function NoteBubble({ note }: { note: string }) {
+  return (
+    <div className="relative mt-4 rounded-2xl rounded-tl-md bg-brand-blue-light/60 px-4 py-3">
+      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-brand-blue">
+        <Icon.chat className="h-3 w-3" /> Note from the owner
+      </p>
+      <p className="mt-1 text-sm leading-relaxed text-brand-ink">{note}</p>
+      <span
+        aria-hidden
+        className="absolute -top-1.5 left-4 h-3 w-3 rotate-45 bg-brand-blue-light/60"
+      />
+    </div>
+  );
+}
+
 function AgentCard({
   profile,
   onMessage,
@@ -400,6 +424,7 @@ function AgentCard({
   interestCount,
   interestLabel,
   interestZeroLabel,
+  note,
 }: {
   profile: PartyProfile;
   onMessage?: () => void;
@@ -412,6 +437,8 @@ function AgentCard({
   interestCount?: number;
   interestLabel?: string;
   interestZeroLabel?: string;
+  /** The note they wrote at publish time (parking, pets, etc), if any. */
+  note?: string;
 }) {
   const allVerified = profile.verified.idCheck && profile.verified.referencing && profile.verified.funds;
   const propertiesListed = profile.details.find((d) => d.label === "Properties listed")?.value;
@@ -458,6 +485,7 @@ function AgentCard({
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-brand-muted">{profile.about}</p>
+      {note && <NoteBubble note={note} />}
 
       <div className={fill ? "mt-auto" : ""}>
         <div className="mt-5 flex gap-6 border-t border-brand-border pt-4">
@@ -505,6 +533,7 @@ function YourListingCard({
   manageTo,
   manageLabel,
   interest,
+  note,
 }: {
   profile: PartyProfile;
   stats: { label: string; value: string }[];
@@ -521,6 +550,9 @@ function YourListingCard({
     people?: { name: string; initials: string; photoUrl?: string }[];
     scrollToId: string;
   };
+  /** The note you wrote at publish time, shown back to you the same way
+   *  visitors see it. */
+  note?: string;
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   return (
@@ -553,6 +585,8 @@ function YourListingCard({
           )}
         </span>
       </div>
+
+      {note && <NoteBubble note={note} />}
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         {stats.map((s) => (
@@ -1011,6 +1045,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                 people: interested.map((t) => ({ name: t.name, initials: t.initials, photoUrl: avatarFor(t.name) })),
                 scrollToId: "interested-tenants",
               }}
+              note={listing.notes}
             />
           ) : (
             <AgentCard
@@ -1026,6 +1061,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                   action: () => navigate(`/app/messages?thread=investor-${listing.id}`),
                 })
               }
+              note={listing.notes}
             />
           )}
         </div>
@@ -1060,7 +1096,8 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
             <Divider />
 
             <p className="text-[15px] leading-relaxed text-brand-ink">{details.blurb}</p>
-            {listing.notes && <p className="mt-3 text-[15px] italic leading-relaxed text-brand-ink">"{listing.notes}"</p>}
+            {/* The note now shows as a message bubble next to the owner's
+                profile above instead of an easy-to-miss italic line here. */}
             {listing.accepts && listing.accepts.length > 0 && (
               <p className="mt-3 text-sm text-brand-muted">
                 <span className="font-semibold text-brand-ink">Accepting:</span> {listing.accepts.join(", ")}
@@ -1202,6 +1239,12 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                       tenant={agreementTenantProfile}
                       viewerRole={viewerRole}
                       onAdvance={(by) => advanceAgreement(listing.id, by)}
+                      property={{
+                        title: listing.address,
+                        location: listing.city,
+                        imageUrl: listing.imageUrl,
+                        price: listing.price,
+                      }}
                     />
                   </div>
                 </>
@@ -1420,6 +1463,7 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
                 zeroLabel: "No interest yet",
                 scrollToId: "investor-interest",
               }}
+              note={demand.notes}
             />
           ) : (
             <AgentCard
@@ -1435,6 +1479,7 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
                   action: () => navigate(`/app/messages?thread=tenant-${demand.id}`),
                 })
               }
+              note={demand.notes}
             />
           )}
         </div>
@@ -1473,7 +1518,6 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
             <p className="text-[15px] leading-relaxed text-brand-ink">
               {`Looking for a ${demand.minBeds === 0 ? "studio" : `${demand.minBeds}-bedroom`} ${demand.propertyType.toLowerCase()} in ${demand.city}, ready to be bought for the right tenant.`}
             </p>
-            {demand.notes && <p className="mt-3 text-[15px] italic leading-relaxed text-brand-ink">"{demand.notes}"</p>}
             {demand.household && (
               <p className="mt-3 text-sm text-brand-muted">
                 <span className="font-semibold text-brand-ink">Household:</span> {demand.household}

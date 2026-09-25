@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useRole } from "../context/RoleContext";
 import { type PropertyType } from "../data/mockData";
 import PropertyLinkImporter from "../components/PropertyLinkImporter";
-import AddedPropertiesSummary from "../components/AddedPropertiesSummary";
 import MarketplaceGrid from "../components/MarketplaceGrid";
 import { useListings } from "../context/ListingsContext";
 import { useSearchParams } from "react-router-dom";
@@ -241,6 +241,10 @@ function portalUrl(portal: "rightmove" | "zoopla" | "onthemarket", p: PortalSear
   return `https://www.onthemarket.com/${path}/property/${locationSlug(p.location)}/${query ? `?${query}` : ""}`;
 }
 
+// Opens all three at once. Browsers can be strict about multiple windows
+// from one click, but this fires all three synchronously inside the actual
+// click handler (not delayed/async), which is what keeps a browser from
+// treating the 2nd and 3rd as unrequested popups.
 function openAllPortals(p: PortalSearchParams) {
   (["rightmove", "zoopla", "onthemarket"] as const).forEach((portal) => {
     window.open(portalUrl(portal, p), "_blank", "noopener,noreferrer");
@@ -279,16 +283,13 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
   const [portalPropertyType, setPortalPropertyType] = useState<PortalPropertyType>(
     (params.get("type") as PortalPropertyType) ?? "Any"
   );
-  // Filtering is live - every field above already narrows the results
-  // shown below as you type, so there's nothing to "run" here. The Search
-  // button's only job is to scroll you down to what's already filtered.
-  // (This used to open a menu asking "Buynidify listings or real UK
-  // portals?" - confusing, since picking "Buynidify listings" just scrolled
-  // to the same live-filtered grid you could already see updating. The real
-  // portals are a genuinely separate destination, so they get their own
-  // small link instead of hiding behind the main Search button.)
+  // Filtering above is live and only affects Buynidify's own results further
+  // down the page. "Search Property" is a different thing entirely: it opens
+  // a small panel with the real UK portals, all three shown equally - not a
+  // permanent block (too much space) and not one portal singled out as the
+  // "main" one (there isn't one).
   const resultsRef = useRef<HTMLDivElement>(null);
-  const [portalMenuOpen, setPortalMenuOpen] = useState(false);
+  const [searchMenuOpen, setSearchMenuOpen] = useState(false);
 
   const effectiveLocation = location;
   const mockTypes = portalTypeToMockTypes[portalPropertyType];
@@ -337,6 +338,15 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
     isInvestor ? "tenants" : "investors"
   );
 
+  // The properties you've pasted a link for yourself - not the platform's
+  // matches. This is what the "your listings" strip and the Manage your
+  // listings link below actually mean.
+  const { importedProperties } = useListings();
+  const myImports = importedProperties.filter((p) =>
+    role ? (isInvestor ? p.owner === "investor" : p.owner === "tenant") : p.owner === "guest"
+  );
+  const myPropertiesPath = role ? "/app/my-properties" : "/my-properties";
+
   return (
     <div>
       <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink">
@@ -353,17 +363,11 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
       </p>
 
       {/* SEARCH CONSOLE
-          Blend of the two patterns worth stealing:
-          - Airbnb: one elevated pill split into segments, each with a tiny
-            label above its value, whole segment highlights on hover, solid
-            action button welded to the end.
-          - Rightmove: price as a min->to->max pair in a single segment, and
-            a live result count sitting right under the bar.
-          Everything filters instantly; Search just jumps you to the results. */}
-      {/* Same white bar and near-black pill button as the landing page hero,
-          so the two searches read as one product. */}
-      <div className="relative mt-6">
-      <div className="rounded-[28px] border border-brand-border bg-white p-2 shadow-xl shadow-brand-ink/10">
+          Fields filter Buynidify's own listings live, further down. "Search
+          Property" is separate: it opens the real-portal panel right inside
+          this same card, so the two clearly belong together, without the
+          panel sitting open (and taking up space) all the time. */}
+      <div className="mt-6 rounded-[28px] border border-brand-border bg-white p-2 shadow-xl shadow-brand-ink/10">
         <div className="flex flex-col divide-y divide-brand-ink/10 lg:flex-row lg:items-stretch lg:divide-x lg:divide-y-0">
           {/* Exactly the component the landing hero uses, so clicking the
               field opens the same list here. It already accepts free text,
@@ -442,13 +446,14 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
             />
           </Segment>
 
+          {/* Back to a button that opens a small panel, not a permanently
+              open block or one portal singled out as special - all three
+              are equal options, shown equal weight, and the panel is gone
+              again the moment you're not using it. */}
           <div className="flex items-center pt-2 lg:pl-2 lg:pt-0">
-            {/* Nothing to "run" - every field above already filters the
-                grid below live. This just scrolls you to what's already
-                showing, same as a "Jump to results" link would. */}
             <button
               type="button"
-              onClick={() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              onClick={() => setSearchMenuOpen((v) => !v)}
               className="group flex w-full items-center justify-center gap-3 rounded-full bg-brand-ink py-2.5 pl-6 pr-2.5 text-sm font-semibold text-white transition-all duration-200 hover:shadow-xl lg:w-auto"
             >
               Search Property
@@ -458,130 +463,129 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
             </button>
           </div>
         </div>
-      </div>
+
+        {/* The panel: all three real portals, equal weight, plus one button
+            to open all three together. Only takes space while it's open. */}
+        {searchMenuOpen && (
+          <div className="border-t border-brand-ink/10 p-3 sm:p-4">
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(Object.keys(portalMeta) as (keyof typeof portalMeta)[]).map((portal) => (
+                <a
+                  key={portal}
+                  href={portalUrl(portal, {
+                    transactionType,
+                    location: effectiveLocation,
+                    priceMin,
+                    priceMax,
+                    bedrooms,
+                    propertyType: portalPropertyType,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-brand-border bg-brand-surface py-3 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue"
+                >
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-ink text-[10px] font-bold text-white">
+                    {portalMeta[portal].initial}
+                  </span>
+                  {portalMeta[portal].label}
+                </a>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                openAllPortals({
+                  transactionType,
+                  location: effectiveLocation,
+                  priceMin,
+                  priceMax,
+                  bedrooms,
+                  propertyType: portalPropertyType,
+                })
+              }
+              className="mt-2 w-full rounded-xl border border-brand-border py-2.5 text-sm font-semibold text-brand-blue transition-colors hover:bg-brand-blue-light"
+            >
+              Check all three platforms ↗
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Live count, right under the bar, so the connection is obvious:
-          change a filter above, this number (and the grid below) updates
-          immediately - no separate "run search" step. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
-        <p className="text-sm text-brand-muted">
+      {/* Found something? Paste the link right here, directly under the
+          search you just did - not buried below the platform grid. Your own
+          added properties, if any, show as one compact line right beneath
+          it - not a whole extra card, so Platform listings stays in view. */}
+      <div className="mt-4">
+        <PropertyLinkImporter inputOnly />
+      </div>
+
+      {myImports.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 px-1">
+          <span className="text-xs font-semibold text-brand-ink">
+            {myImports.length} you've added:
+          </span>
+          <div className="flex flex-1 min-w-0 gap-2 overflow-x-auto">
+            {myImports.slice(0, 6).map((p) => (
+              <Link
+                key={p.id}
+                to={myPropertiesPath}
+                className="flex flex-shrink-0 items-center gap-1.5 rounded-full border border-brand-border bg-white py-1 pl-1 pr-2.5 transition-colors hover:border-brand-blue"
+              >
+                <img
+                  src={p.imageUrl ?? propertyImage(p.id, p.type)}
+                  alt=""
+                  className="h-6 w-6 flex-shrink-0 rounded-full object-cover"
+                />
+                <span className="whitespace-nowrap text-[11px] font-semibold text-brand-ink">
+                  {gbp.format(p.price)}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <Link
+            to={myPropertiesPath}
+            className="flex-shrink-0 text-xs font-semibold text-brand-blue hover:underline"
+          >
+            Manage your listings →
+          </Link>
+        </div>
+      )}
+
+      {/* SECONDARY: Buynidify's own platform - a much smaller, clearly
+          separate set of matches. Kept close behind the search above
+          (rather than buried under a big "your listings" card) so it's
+          still visible without much scrolling, and so it's obvious tenants'
+          own requests are in here too, not just investor listings. */}
+      <div ref={resultsRef} className="mt-6 scroll-mt-6 border-t border-brand-border pt-6">
+        <h2 className="font-display text-lg font-semibold tracking-tight text-brand-ink">
+          Platform listings
+        </h2>
+        <p className="mt-1 text-sm text-brand-muted">
           <span className="font-semibold text-brand-ink">
             {platformListings.length + platformDemand.length}
           </span>{" "}
-          {platformListings.length + platformDemand.length === 1 ? "match" : "matches"} on Buynidify
+          {platformListings.length + platformDemand.length === 1 ? "match" : "matches"} on Buynidify itself
           {effectiveLocation ? ` near ${effectiveLocation}` : " across the UK"}
+          {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
+            <>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceMin("");
+                  setPriceMax("");
+                  setBedrooms("Any");
+                  setPortalPropertyType("Any");
+                }}
+                className="font-semibold underline-offset-2 hover:text-brand-blue hover:underline"
+              >
+                Clear filters
+              </button>
+            </>
+          )}
         </p>
-        {(priceMin || priceMax || bedrooms !== "Any" || portalPropertyType !== "Any") && (
-          <button
-            type="button"
-            onClick={() => {
-              setPriceMin("");
-              setPriceMax("");
-              setBedrooms("Any");
-              setPortalPropertyType("Any");
-            }}
-            className="text-xs font-semibold text-brand-muted underline-offset-2 hover:text-brand-blue hover:underline"
-          >
-            Clear filters
-          </button>
-        )}
-        {/* The real portals are a genuinely different destination (leaving
-            Buynidify entirely), not another way to see the same results -
-            so this is a plain text toggle, not a button that competes with
-            Search Property. Same filters carry over automatically. */}
-        <button
-          type="button"
-          onClick={() => setPortalMenuOpen((v) => !v)}
-          className="text-xs font-semibold text-brand-blue underline-offset-2 hover:underline"
-        >
-          {portalMenuOpen ? "Hide" : "Also check"} Rightmove, Zoopla & OnTheMarket {portalMenuOpen ? "▲" : "▼"}
-        </button>
-      </div>
 
-      {portalMenuOpen && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-brand-border bg-brand-surface p-3">
-          <span className="mr-1 text-xs text-brand-muted">Same filters, on the real sites:</span>
-          {(Object.keys(portalMeta) as (keyof typeof portalMeta)[]).map((portal) => (
-            <a
-              key={portal}
-              href={portalUrl(portal, {
-                transactionType,
-                location: effectiveLocation,
-                priceMin,
-                priceMax,
-                bedrooms,
-                propertyType: portalPropertyType,
-              })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full border border-brand-border bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:border-brand-blue"
-            >
-              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-brand-ink text-[9px] font-bold text-white">
-                {portalMeta[portal].initial}
-              </span>
-              {portalMeta[portal].label}
-              <span aria-hidden className="text-brand-muted">↗</span>
-            </a>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              openAllPortals({
-                transactionType,
-                location: effectiveLocation,
-                priceMin,
-                priceMax,
-                bedrooms,
-                propertyType: portalPropertyType,
-              })
-            }
-            className="rounded-full px-3 py-1.5 text-xs font-semibold text-brand-blue hover:underline"
-          >
-            Open all three ↗
-          </button>
-        </div>
-      )}
-
-      {(platformListings.length > 0 || platformDemand.length > 0) && (
-        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
-          {[...platformListings.slice(0, 6).map((l) => ({
-            id: l.id,
-            href: `/property/${l.id}?kind=listing`,
-            img: l.imageUrl ?? propertyImage(l.id, l.type),
-            price: l.monthlyRent ? `${gbp.format(l.monthlyRent)}/mo` : "POA",
-            sub: l.city,
-          })),
-          ...platformDemand.slice(0, 6).map((d) => ({
-            id: d.id,
-            href: `/property/${d.id}?kind=demand`,
-            img: d.imageUrl ?? propertyImage(d.id, d.propertyType),
-            price: d.targetPrice ? gbp.format(d.targetPrice) : "POA",
-            sub: d.city,
-          }))].map((item) => (
-            <a
-              key={item.id}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-shrink-0 items-center gap-2 rounded-full border border-brand-border bg-white py-1 pl-1 pr-3 transition-colors hover:border-brand-blue"
-            >
-              <img src={item.img} alt="" className="h-7 w-7 flex-shrink-0 rounded-full object-cover" />
-              <span className="whitespace-nowrap text-xs">
-                <span className="font-semibold text-brand-ink">{item.price}</span>{" "}
-                <span className="text-brand-muted">· {item.sub}</span>
-              </span>
-            </a>
-          ))}
-        </div>
-      )}
-
-      {/* Straight into the full browsing grid - this used to be a separate
-          "Platform listings" page you had to navigate to on top of Search;
-          the two were doing almost the same job, so this is now the one
-          place both live. */}
-      <div ref={resultsRef} className="mt-6 scroll-mt-6">
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {([
             { id: "investors", label: "From investors", count: platformListings.length },
             { id: "tenants", label: "From tenants", count: platformDemand.length },
@@ -623,16 +627,6 @@ export default function Search({ chrome = "portal" }: { chrome?: "public" | "por
               : "No investor has published a property like this yet. Widen the filters, or paste a link below to ask for one."
           }
         />
-      </div>
-
-      {/* Found something on a real portal? Paste the link here. This is the
-          one place a property enters the platform; everything you do with it
-          afterwards happens on My Properties. Moved below the browsing grid
-          now that this page is the merged search + listings experience -
-          browsing is the main job, adding a property is secondary. */}
-      <div className="mt-12 border-t border-brand-border pt-8">
-        <PropertyLinkImporter inputOnly />
-        <AddedPropertiesSummary />
       </div>
     </div>
   );

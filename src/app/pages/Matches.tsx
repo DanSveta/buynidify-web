@@ -209,6 +209,12 @@ function MatchDetailPanel({
               viewerRole={viewerRole}
               onAdvance={onAdvanceDeal}
               compact
+              property={{
+                title: dealProperty.title,
+                location: dealProperty.location,
+                imageUrl: dealProperty.imageUrl,
+                price: dealProperty.price,
+              }}
             />
           </div>
         )}

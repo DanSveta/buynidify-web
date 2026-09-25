@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useRole } from "../app/context/RoleContext";
+import { useProfile } from "../app/context/ProfileContext";
 import { useAuthGate } from "../app/context/AuthGateContext";
 import { useListings } from "../app/context/ListingsContext";
 import { initialsOf } from "../app/utils/greeting";
@@ -104,7 +105,11 @@ export default function PublicShell({
   children: React.ReactNode;
   active: "search" | "listings" | "my-properties" | "partners" | "about" | "property" | "corporate";
 }) {
-  const { role, name } = useRole();
+  const { role } = useRole();
+  // Same fix as TopBar: read the Profile page's own name, not RoleContext's
+  // raw one, so the header avatar can't show different initials/no photo
+  // from what Profile itself displays.
+  const { fullName } = useProfile();
   const { promptSignUp } = useAuthGate();
   const { importedProperties } = useListings();
   // Only worth a nav slot once you have something in there.
@@ -208,7 +213,7 @@ export default function PublicShell({
                 className="flex items-center gap-2 rounded-full border border-brand-border py-1.5 pl-3 pr-1.5 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue"
               >
                 <span className="hidden sm:inline">My account</span>
-                <Avatar name={name || "You"} initials={initialsOf(name || "You")} photoUrl={avatarFor(name || "You")} size="sm" />
+                <Avatar name={fullName || "You"} initials={initialsOf(fullName || "You")} photoUrl={avatarFor(fullName || "You")} size="sm" />
               </Link>
             ) : (
               <>

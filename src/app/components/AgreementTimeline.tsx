@@ -1,8 +1,10 @@
+import { useState } from "react";
 import {
   agreementSteps,
   actorForViewer,
   type Agreement,
   type AgreementActor,
+  type AgreementStage,
 } from "../context/ListingsContext";
 import type { PartyProfile } from "../utils/profiles";
 import Avatar from "./Avatar";
@@ -30,7 +32,6 @@ function formatDate(iso: string) {
 
 const demoLabel: Partial<Record<Agreement["stage"], string>> = {
   matched: "Buynidify confirms the match (demo)",
-  "viewing-arranged": "Confirm the viewing took place (demo)",
   "terms-agreed": "Buynidify agrees terms with both sides (demo)",
   "agreement-signed": "Both sides sign the agreement (demo)",
   "deposit-secured": "Pay the deposit (demo)",
@@ -55,6 +56,38 @@ function fixedActorFor(actor: (typeof agreementSteps)[number]["actor"]): Agreeme
   return "investor"; // "You" and "You and the tenant"
 }
 
+/** The actual purchase mechanics - offer through completion - shown as one
+ *  collapsible line rather than five top-level points. Per Véta: "I don't
+ *  want this whole page to become 20 different points... when you click on
+ *  it, you see different points and what stages the buying process of an
+ *  investor has." The underlying stages still advance one at a time exactly
+ *  as before; this only changes how the list is drawn. */
+const PURCHASE_GROUP_IDS = new Set<AgreementStage>([
+  "offer-submitted",
+  "searches-survey",
+  "mortgage-finalised",
+  "contracts-exchanged",
+  "completion",
+]);
+
+type TimelineStep = (typeof agreementSteps)[number];
+type TimelineRow = { kind: "step"; step: TimelineStep } | { kind: "group"; steps: TimelineStep[] };
+
+function buildRows(): TimelineRow[] {
+  const rows: TimelineRow[] = [];
+  for (const step of agreementSteps) {
+    if (PURCHASE_GROUP_IDS.has(step.id)) {
+      const last = rows[rows.length - 1];
+      if (last?.kind === "group") last.steps.push(step);
+      else rows.push({ kind: "group", steps: [step] });
+    } else {
+      rows.push({ kind: "step", step });
+    }
+  }
+  return rows;
+}
+const timelineRows = buildRows();
+
 export default function AgreementTimeline({
   agreement,
   investor,
@@ -62,6 +95,7 @@ export default function AgreementTimeline({
   viewerRole,
   onAdvance,
   compact = false,
+  property,
 }: {
   agreement: Agreement;
   investor: PartyProfile;
@@ -72,14 +106,28 @@ export default function AgreementTimeline({
   /** A shorter rendering for embedding inside a card that already has its
    *  own property header. */
   compact?: boolean;
+  /** So this chart is self-explanatory wherever it's embedded, not just on
+   *  the property's own page - "you should probably have the picture of
+   *  the property... so it's clear what this chart is about." Pass this
+   *  even in compact mode unless the surrounding card already shows a
+   *  photo (Deal Detail does). */
+  property?: { title: string; location: string; imageUrl?: string; price?: number };
 }) {
   const currentIndex = agreementSteps.findIndex((s) => s.id === agreement.stage);
   const current = agreementSteps[currentIndex];
   const next = agreementSteps[currentIndex + 1];
   const historyFor = (stage: string) => agreement.history?.find((h) => h.stage === stage);
   const otherName = viewerRole === "investor" ? tenant.name : investor.name;
+  const stageIndex = (id: AgreementStage) => agreementSteps.findIndex((s) => s.id === id);
 
   const nextActor = next ? actorForViewer(next.actor, viewerRole) : "done";
+
+  // Open automatically only while you're actually in the middle of the
+  // purchase steps, so arriving mid-purchase doesn't hide where things
+  // stand - otherwise collapsed, so the list reads as one line, not five.
+  const [purchaseExpanded, setPurchaseExpanded] = useState(
+    () => current && PURCHASE_GROUP_IDS.has(current.id)
+  );
 
   function advance(by: AgreementActor) {
     onAdvance?.(by);
@@ -87,6 +135,29 @@ export default function AgreementTimeline({
 
   return (
     <div className={compact ? "" : "rounded-2xl border border-brand-border bg-white p-5"}>
+      {property && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl bg-brand-surface p-2.5">
+          {property.imageUrl ? (
+            <img
+              src={property.imageUrl}
+              alt=""
+              className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
+            />
+          ) : (
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-brand-border text-brand-muted">
+              🏠
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-brand-ink">{property.title}</p>
+            <p className="truncate text-xs text-brand-muted">
+              {property.location}
+              {property.price ? ` · £${property.price.toLocaleString("en-GB")}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Both parties, "doing this together". */}
       <div className="flex items-center gap-3">
         <div className="flex items-center -space-x-3">
@@ -164,50 +235,150 @@ export default function AgreementTimeline({
         )}
       </div>
 
-      {/* The whole timeline, colour-coded by who it waits on. */}
+      {/* The whole timeline, colour-coded by who it waits on. The five
+          purchase-mechanics steps render as one collapsible row - see
+          PURCHASE_GROUP_IDS - everything else is its own point as before. */}
       <ol className="mt-4 space-y-2">
-        {agreementSteps.map((step, i) => {
-          const done = i < currentIndex || (i === currentIndex && !next);
-          const isCurrent = i === currentIndex;
-          const rel = actorForViewer(step.actor, viewerRole);
-          const entry = historyFor(step.id);
-          return (
-            <li key={step.id} className="flex items-start gap-3">
-              <span
-                className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                  done
-                    ? "bg-emerald-100 text-emerald-700"
-                    : isCurrent
-                      ? "bg-brand-blue text-white"
-                      : rel === "buynidify"
-                        ? "bg-red-50 text-red-400"
-                        : "bg-brand-surface text-brand-muted"
-                }`}
-              >
-                {done ? "✓" : i + 1}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <span
-                    className={`text-sm ${
-                      isCurrent ? "font-semibold text-brand-ink" : done ? "text-brand-ink" : "text-brand-muted"
-                    }`}
-                  >
-                    {step.label}
+        {timelineRows.map((row) => {
+          if (row.kind === "step") {
+            const step = row.step;
+            const i = stageIndex(step.id);
+            const done = i < currentIndex || (i === currentIndex && !next);
+            const isCurrent = i === currentIndex;
+            const rel = actorForViewer(step.actor, viewerRole);
+            const entry = historyFor(step.id);
+            return (
+              <li key={step.id} className="flex items-start gap-3">
+                <span
+                  className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    done
+                      ? "bg-emerald-100 text-emerald-700"
+                      : isCurrent
+                        ? "bg-brand-blue text-white"
+                        : rel === "buynidify"
+                          ? "bg-red-50 text-red-400"
+                          : "bg-brand-surface text-brand-muted"
+                  }`}
+                >
+                  {done ? "✓" : i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`text-sm ${
+                        isCurrent ? "font-semibold text-brand-ink" : done ? "text-brand-ink" : "text-brand-muted"
+                      }`}
+                    >
+                      {step.label}
+                    </span>
+                    {rel === "buynidify" && (
+                      <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">
+                        Buynidify
+                      </span>
+                    )}
                   </span>
-                  {rel === "buynidify" && (
-                    <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">
-                      Buynidify
+                  {entry && (
+                    <span className="block text-[11px] text-brand-muted">
+                      {formatDate(entry.at)}
+                      {entry.by !== "buynidify" && ` · confirmed by ${entry.by === "investor" ? investor.name : tenant.name}`}
                     </span>
                   )}
                 </span>
-                {entry && (
-                  <span className="block text-[11px] text-brand-muted">
-                    {formatDate(entry.at)}
-                    {entry.by !== "buynidify" && ` · confirmed by ${entry.by === "investor" ? investor.name : tenant.name}`}
+              </li>
+            );
+          }
+
+          // The collapsed "Purchase in progress" group.
+          const indices = row.steps.map((s) => stageIndex(s.id));
+          const groupDone = indices.every((i) => i < currentIndex || (i === currentIndex && !next));
+          const groupCurrent = indices.includes(currentIndex);
+          const doneCount = indices.filter((i) => i < currentIndex || (i === currentIndex && !next)).length;
+          const currentSub = row.steps.find((s) => stageIndex(s.id) === currentIndex);
+
+          return (
+            <li key="purchase-group">
+              <button
+                type="button"
+                onClick={() => setPurchaseExpanded((v) => !v)}
+                className="flex w-full items-start gap-3 rounded-lg text-left transition-colors hover:bg-brand-surface"
+              >
+                <span
+                  className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    groupDone
+                      ? "bg-emerald-100 text-emerald-700"
+                      : groupCurrent
+                        ? "bg-brand-blue text-white"
+                        : "bg-brand-surface text-brand-muted"
+                  }`}
+                >
+                  {groupDone ? "✓" : doneCount + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`text-sm ${
+                        groupCurrent ? "font-semibold text-brand-ink" : groupDone ? "text-brand-ink" : "text-brand-muted"
+                      }`}
+                    >
+                      Purchase in progress
+                    </span>
+                    <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-muted">
+                      {doneCount}/{row.steps.length} · {purchaseExpanded ? "hide steps" : "show steps"}
+                    </span>
                   </span>
-                )}
-              </span>
+                  <span className="block text-[11px] text-brand-muted">
+                    {groupDone
+                      ? "Purchase complete."
+                      : groupCurrent && currentSub
+                        ? `Currently: ${currentSub.label} - ${currentSub.detail}`
+                        : "The offer, searches, mortgage and legal paperwork that make the sale binding."}
+                  </span>
+                </span>
+                <span aria-hidden className={`mt-1 flex-shrink-0 text-brand-muted transition-transform ${purchaseExpanded ? "rotate-180" : ""}`}>
+                  ⌄
+                </span>
+              </button>
+
+              {purchaseExpanded && (
+                <ol className="ml-8 mt-2 space-y-2 border-l border-brand-border pl-4">
+                  {row.steps.map((step) => {
+                    const i = stageIndex(step.id);
+                    const done = i < currentIndex || (i === currentIndex && !next);
+                    const isCurrent = i === currentIndex;
+                    const entry = historyFor(step.id);
+                    return (
+                      <li key={step.id} className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                            done
+                              ? "bg-emerald-100 text-emerald-700"
+                              : isCurrent
+                                ? "bg-brand-blue text-white"
+                                : "bg-brand-surface text-brand-muted"
+                          }`}
+                        >
+                          {done ? "✓" : ""}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={`block text-xs ${
+                              isCurrent ? "font-semibold text-brand-ink" : done ? "text-brand-ink" : "text-brand-muted"
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                          <span className="block text-[11px] text-brand-muted">{step.detail}</span>
+                          {entry && (
+                            <span className="block text-[10px] text-brand-muted">
+                              {formatDate(entry.at)} · confirmed by {entry.by === "investor" ? investor.name : tenant.name}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </li>
           );
         })}

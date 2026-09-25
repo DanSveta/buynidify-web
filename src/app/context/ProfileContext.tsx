@@ -140,6 +140,40 @@ type ProfileContextValue = {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
+/** Wipes a persona's saved profile so the next thing that reads it (the
+ *  ProfileProvider below, via usePersistedState) builds a fresh one from
+ *  the name just typed at signup, rather than inheriting whatever was left
+ *  over from earlier testing under that same role. This is a plain
+ *  localStorage write, not something routed through the context/hook - by
+ *  the time login() actually switches you into the new role and
+ *  ProfileProvider re-reads that role's storage key, this needs to have
+ *  already landed, and a hook update inside the same click can't beat that
+ *  race reliably. Call it right before RoleContext.login(), from the
+ *  signup screen. Without this, a fresh "DST" signup once ended up
+ *  displaying as "Sam Carter" on the Profile page while still showing
+ *  "DST" wherever that persona is named on someone else's screen (an
+ *  interested-tenant row, say) - two different stores for the same name,
+ *  one stale. Signing up is meant to start clean, not resurrect old test
+ *  data. */
+export function resetPersistedProfile(role: "investor" | "tenant" | "corporate", freshName: string) {
+  if (typeof window === "undefined") return;
+  const trimmed = freshName.trim();
+  const roleDefaults = defaultProfileByRole[role];
+  const fallbackFirst = defaultNames[role].trim().split(/\s+/)[0] ?? "";
+  const fallbackLast = defaultNames[role].trim().split(/\s+/).slice(1).join(" ");
+  const fresh: UserProfile = {
+    ...roleDefaults,
+    firstName: trimmed ? trimmed.split(/\s+/)[0] : fallbackFirst,
+    lastName: trimmed && trimmed.split(/\s+/).length > 1 ? trimmed.split(/\s+/).slice(1).join(" ") : fallbackLast,
+    middleName: "",
+  };
+  try {
+    window.localStorage.setItem(`buynidify:profile:v2:${role}`, JSON.stringify(fresh));
+  } catch {
+    // Storage full or blocked - the demo still works for this session.
+  }
+}
+
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const { role, name, setName } = useRole();
 

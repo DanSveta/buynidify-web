@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "../context/RoleContext";
+import { useProfile } from "../context/ProfileContext";
 import { useTheme } from "../context/ThemeContext";
 import { useListings } from "../context/ListingsContext";
 import { usePersistedState } from "../utils/usePersistedState";
@@ -267,7 +268,15 @@ function connectionIdFromMatchId(matchId: string): string {
 
 export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const navigate = useNavigate();
-  const { role, name, logout } = useRole();
+  const { role, logout } = useRole();
+  // The Profile page's own name (firstName/lastName), not RoleContext's raw
+  // `name` - those two could drift apart (RoleContext's name is set once at
+  // login/signup; editing your name on the Profile page only ever updated
+  // ProfileContext), which is how the avatar up here could show different
+  // initials, or no photo at all, from the name shown on Profile itself.
+  // Reading the same field Profile reads keeps the two in sync by
+  // construction instead of by remembering to update both.
+  const { fullName } = useProfile();
   const { promptSignUp } = useAuthGate();
   const { dark, toggleDark } = useTheme();
   const { threads, matches, investorListings, tenantDemand, interestedTenantsFor, hasInvestorResponded, unreadThreadCount } =
@@ -368,8 +377,8 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
 
   const unread = notes.filter((n) => !readIds.includes(n.id));
 
-  const initials = name ? initialsOf(name) : role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
-  const photoUrl = name ? avatarFor(name) : undefined;
+  const initials = fullName ? initialsOf(fullName) : role === "corporate" ? "CO" : role === "tenant" ? "TN" : "IN";
+  const photoUrl = fullName ? avatarFor(fullName) : undefined;
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-brand-border bg-brand-panel px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
@@ -493,7 +502,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
         {openPanel === "avatar" && (
           <div className="absolute right-0 top-12 w-60 overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg">
             <div className="border-b border-brand-border px-4 py-3">
-              <p className="text-sm font-semibold text-brand-ink">{name || "Your account"}</p>
+              <p className="text-sm font-semibold text-brand-ink">{fullName || "Your account"}</p>
               <p className="text-xs text-brand-muted">
                 Signed in as {roleLabel[role ?? "investor"].toLowerCase()}
               </p>

@@ -412,6 +412,12 @@ function PropertyCard({
                 tenant={agreementTenant}
                 viewerRole="investor"
                 onAdvance={(by) => advanceAgreement(property.id, by)}
+                property={{
+                  title: property.title,
+                  location: property.location,
+                  imageUrl: property.imageUrl,
+                  price: property.price,
+                }}
               />
               <button
                 type="button"
@@ -1052,6 +1058,12 @@ function MyPropertiesTenant() {
                 tenant={selfProfile(`tenant-${p.id}`, namesByRole.tenant, "Tenant")}
                 viewerRole="tenant"
                 onAdvance={(by) => advanceAgreement(p.id, by)}
+                property={{
+                  title: p.title,
+                  location: p.location,
+                  imageUrl: p.imageUrl,
+                  price: p.price,
+                }}
               />
             ))}
           </div>

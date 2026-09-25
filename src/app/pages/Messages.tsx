@@ -243,26 +243,98 @@ export default function Messages() {
 
               <div className="flex-1 space-y-2 overflow-y-auto py-4">
                 {active.messages.map((m) =>
-                  m.senderRole === "system" ? (
-                    // Buynidify's own narration of a deal update - not a
-                    // message from either party, so it doesn't sit on
-                    // either side of the conversation like one.
-                    <div key={m.id} className="my-2 flex justify-center">
-                      <div className="flex max-w-[85%] items-start gap-2 rounded-full border border-brand-gold/40 bg-brand-gold/10 px-3.5 py-1.5 text-center text-xs font-medium text-brand-ink">
-                        <span aria-hidden className="text-brand-gold-dark">●</span>
-                        <span>{m.body}</span>
+                  m.kind === "match" ? (
+                    // The "you're matched" moment - deliberately the
+                    // richest card in the thread, with the property
+                    // attached, so it reads as an event worth celebrating
+                    // rather than another line of text.
+                    <div key={m.id} className="my-3 flex justify-center">
+                      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-100/70 px-4 py-2">
+                          <span aria-hidden className="text-base">🎉</span>
+                          <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">You're matched!</p>
+                        </div>
+                        {m.card?.propertyImage && (
+                          <img
+                            src={m.card.propertyImage}
+                            alt=""
+                            className="h-32 w-full object-cover"
+                          />
+                        )}
+                        <div className="px-4 py-3">
+                          {m.card?.propertyTitle && (
+                            <p className="text-sm font-semibold text-brand-ink">{m.card.propertyTitle}</p>
+                          )}
+                          {m.card?.propertyLocation && (
+                            <p className="text-xs text-brand-muted">{m.card.propertyLocation}</p>
+                          )}
+                          <p className="mt-2 text-sm text-brand-ink">{m.body}</p>
+                          {m.card?.propertyId && (
+                            <Link
+                              to={`/property/${m.card.propertyId}`}
+                              className="mt-2 inline-block text-xs font-semibold text-brand-blue hover:underline"
+                            >
+                              View property →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : m.kind === "update" || (!m.kind && m.senderRole === "system") ? (
+                    // A Buynidify team update - deliberately NOT styled like
+                    // either party talking, so a stage-progress narration is
+                    // never mistaken for a message from the investor or
+                    // tenant. Carries the property so it's self-explanatory
+                    // out of context too.
+                    <div key={m.id} className="my-3 flex justify-center">
+                      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-gold/40 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-brand-gold/30 bg-brand-gold/10 px-4 py-2">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-gold text-[10px] font-bold text-brand-ink">B</span>
+                          <p className="text-xs font-bold uppercase tracking-wide text-brand-gold-dark">Buynidify update</p>
+                          <span className="ml-auto text-[10px] text-brand-muted">
+                            {new Date(m.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                        <div className="flex gap-3 px-4 py-3">
+                          {m.card?.propertyImage && (
+                            <img
+                              src={m.card.propertyImage}
+                              alt=""
+                              className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            {m.card?.propertyTitle && (
+                              <p className="truncate text-[11px] font-semibold text-brand-muted">{m.card.propertyTitle}</p>
+                            )}
+                            <p className="text-sm text-brand-ink">{m.body}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ) : (
                     <div
                       key={m.id}
-                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                        isMine(m)
-                          ? "ml-auto bg-brand-blue text-white"
-                          : "bg-brand-surface text-brand-ink"
-                      }`}
+                      className={`max-w-[80%] ${isMine(m) ? "ml-auto" : ""}`}
                     >
-                      {m.body}
+                      <div
+                        className={`rounded-2xl px-4 py-2 text-sm ${
+                          isMine(m)
+                            ? "bg-brand-blue text-white"
+                            : "bg-brand-surface text-brand-ink"
+                        }`}
+                      >
+                        {m.body}
+                      </div>
+                      {/* Deposit-secured / purchase-complete: voiced as the
+                          tenant or investor themselves (not a Buynidify
+                          card), but Véta wanted "a little more information -
+                          how much" attached right where it's said. */}
+                      {m.card?.amount !== undefined && (
+                        <p className={`mt-1 text-[11px] font-medium text-brand-muted ${isMine(m) ? "text-right" : ""}`}>
+                          {m.card.propertyTitle ? `${m.card.propertyTitle} · ` : ""}£{m.card.amount.toLocaleString("en-GB")}
+                        </p>
+                      )}
                     </div>
                   )
                 )}
@@ -330,6 +402,12 @@ export default function Messages() {
                         viewerRole={viewerRole}
                         onAdvance={(by: AgreementActor) => advanceAgreement(relatedProperty.id, by)}
                         compact
+                        property={{
+                          title: relatedProperty.title,
+                          location: relatedProperty.location,
+                          imageUrl: relatedProperty.imageUrl,
+                          price: relatedProperty.price,
+                        }}
                       />
                     </div>
                   )}

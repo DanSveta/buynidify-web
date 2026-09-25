@@ -36,14 +36,17 @@ type RoleContextValue = {
 // it needs a more deliberate mechanism (e.g. a "?as=tenant" override) rather
 // than relying on sessionStorage's fragile tab boundary.
 const STORAGE_KEY = "buynidify-role";
-// Bumped to -v2: browsers that hit the name-collision bug (investor and
-// tenant both ending up saved as "Sam Carter") had that stuck in the OLD
-// key, and since a persisted value always wins over a fresh default, no
-// amount of fixing the dedupe logic could repair it after the fact - the
-// corrupted value just kept getting read back in and re-deduped into the
-// same corrupted shape. A new key name is a clean slate: nothing bad to
-// inherit, straight back to Alex Morgan / Sam Carter / Northgate HR.
-const NAMES_KEY = "buynidify-names-v2";
+// Bumped to -v3: signing up with a typed test name (e.g. "DST") saved that
+// literal text as the tenant persona's name here, in a store the demo also
+// uses to label "you" wherever a persona shows up on someone else's screen -
+// the interested-tenants row on a listing, say. That name didn't only affect
+// the account that typed it; it's what everyone sees "you" called. A typed
+// name that was clearly just placeholder test text, stuck forever, is the
+// same class of corruption -v2 fixed for the name-collision bug: a persisted
+// value always wins over a fresh default, so no amount of fixing the intake
+// logic repairs it after the fact. Same fix, new key - clean slate, straight
+// back to Alex Morgan / Sam Carter / Northgate HR.
+const NAMES_KEY = "buynidify-names-v3";
 // Superseded by NAMES_KEY, which keeps a separate name per persona - this is
 // only read once, to carry over whatever a returning browser already has.
 const LEGACY_NAME_KEY = "buynidify-name";

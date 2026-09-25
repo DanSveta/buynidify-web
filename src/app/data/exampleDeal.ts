@@ -21,7 +21,6 @@ function daysAgo(n: number): string {
 const stageDays: Record<AgreementStage, number> = {
   "request-sent": 132,
   matched: 130,
-  "viewing-arranged": 128,
   "terms-agreed": 126,
   "agreement-signed": 119,
   "deposit-secured": 112,

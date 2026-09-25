@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useRole, type Role } from "../app/context/RoleContext";
+import { resetPersistedProfile } from "../app/context/ProfileContext";
 import { InvestorIcon, TenantIcon } from "../components/icons";
 
 // A real-looking two-step create-account flow, matching the reference
@@ -81,6 +82,11 @@ export default function Signup() {
   function createAccount(e: React.FormEvent) {
     e.preventDefault();
     if (!role) return;
+    // A new account starts with a clean profile, not whatever was left over
+    // from earlier testing under this same role - see resetPersistedProfile.
+    // Must happen before login(): once that switches the active role, this
+    // typed name is what the fresh profile gets built from.
+    resetPersistedProfile(role, fullName);
     login(role, fullName);
     navigate("/app/overview");
   }
