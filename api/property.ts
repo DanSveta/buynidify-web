@@ -535,6 +535,15 @@ function requestUrl(request: Request): URL {
   }
 }
 
+// Tell Vercel to run this on the Edge runtime, which speaks the standard
+// Request/Response API our handler already uses. Without this, Vercel can
+// fall back to treating the default export as the legacy Node
+// `(req, res) => void` signature - our `return new Response(...)` is then
+// silently discarded (see the "default export returned a 'Response'"
+// warning in the function logs), so the client never gets a reply and the
+// request just hangs until Vercel's own 300s platform timeout kills it.
+export const config = { runtime: "edge" };
+
 /** Vercel serverless entry point. */
 export default async function handler(request: Request): Promise<Response> {
   const params = requestUrl(request).searchParams;
