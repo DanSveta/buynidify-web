@@ -3,11 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { useRole } from "../context/RoleContext";
 import { useProfile } from "../context/ProfileContext";
 import { useTheme } from "../context/ThemeContext";
-import { useListings } from "../context/ListingsContext";
+import {
+  useListings,
+  type ConnectionRecord,
+  type InvestorListing,
+  type TenantDemandEntry,
+} from "../context/ListingsContext";
 import { usePersistedState } from "../utils/usePersistedState";
 import { initialsOf } from "../utils/greeting";
 import { useAuthGate } from "../context/AuthGateContext";
 import { avatarFor } from "../utils/avatars";
+import { investorProfileFor, tenantProfileFor } from "../utils/profiles";
+import { propertyImage } from "../utils/propertyImages";
 import Avatar from "./Avatar";
 
 // Dashboard header: quick search, light/dark switch, messages, notifications
@@ -135,7 +142,6 @@ function pagesFor(role: string): Hit[] {
   }
   return [
     { label: "My Properties", sub: "Page", to: "/app/my-properties" },
-    { label: role === "investor" ? "Search Properties" : "Find a Home", sub: "Page", to: "/app/search" },
     { label: role === "investor" ? "Shortlist" : "Saved Homes", sub: "Page", to: "/app/shortlist" },
     { label: role === "investor" ? "Mutual Matches" : "Matched!", sub: "Page", to: "/app/matches" },
     ...common,
@@ -255,6 +261,11 @@ type Note = {
   /** Shown instead of a person avatar when this isn't about one specific
    *  person (e.g. several tenants interested at once). */
   icon?: string;
+  /** The property this notification is actually about, if any - shown as a
+   *  second, smaller image alongside the person (or icon), so a match, an
+   *  interest signal, a decline/withdrawal or a property-linked message all
+   *  show what it's about at a glance, not just who. */
+  propertyImageUrl?: string;
 };
 
 /** MatchEntry ids are `match-listing-<id>` / `match-demand-<id>` - the
@@ -264,11 +275,56 @@ function connectionIdFromMatchId(matchId: string): string {
   return matchId.replace(/^match-(listing|demand)-/, "");
 }
 
+/** Same `investor-<id>` / `tenant-<id>` convention Messages.tsx unwraps
+ *  (propertyIdFromCounterpartyId) - lets a "new message" notification show
+ *  the property photo too, when the thread is about one. */
+function propertyIdFromCounterpartyId(id: string): string | null {
+  if (id.startsWith("investor-")) return id.slice("investor-".length);
+  if (id.startsWith("tenant-")) return id.slice("tenant-".length);
+  return null;
+}
+
+/** Who actually declined or withdrew a rejected connection, from the
+ *  notified viewer's point of view - so the bell can say "Sam Carter
+ *  declined your request" instead of a faceless "Your request was
+ *  declined". Listing connections are always started by this browser's own
+ *  tenant persona (see ListingsContext); demand connections are always
+ *  started by its own investor persona - so one side of any connection is
+ *  reliably "you", named via namesByRole, and the other is either a seeded
+ *  profile or, for a self-published property, "you" wearing the other hat. */
+function rejectionActorName(
+  c: ConnectionRecord,
+  listing: InvestorListing | undefined,
+  demand: TenantDemandEntry | undefined,
+  namesByRole: Record<"investor" | "tenant" | "corporate", string>
+): string | undefined {
+  if (c.kind === "listing") {
+    if (c.rejectedBy === "recipient") {
+      // The investor (the listing's owner) said no.
+      if (!listing) return undefined;
+      return listing.source === "imported"
+        ? namesByRole.investor
+        : investorProfileFor(listing.id, listing.city, listing.accepts).name;
+    }
+    // The tenant (always this browser's own tenant persona) pulled back.
+    return namesByRole.tenant;
+  }
+  if (c.rejectedBy === "recipient") {
+    // The tenant (the demand's owner) said no.
+    if (!demand) return undefined;
+    return demand.source === "imported"
+      ? namesByRole.tenant
+      : tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds).name;
+  }
+  // The investor (always this browser's own investor persona) pulled back.
+  return namesByRole.investor;
+}
+
 /* --- top bar --------------------------------------------------------------- */
 
 export default function TopBar({ onMenu }: { onMenu?: () => void }) {
   const navigate = useNavigate();
-  const { role, logout } = useRole();
+  const { role, namesByRole, logout } = useRole();
   // The Profile page's own name (firstName/lastName), not RoleContext's raw
   // `name` - those two could drift apart (RoleContext's name is set once at
   // login/signup; editing your name on the Profile page only ever updated
@@ -312,15 +368,24 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
       const counterpartLabel = m.investorLabel === "You" ? m.tenantLabel : m.investorLabel;
       const hasRealName = counterpartLabel && counterpartLabel !== "You";
       const connectionId = connectionIdFromMatchId(m.id);
+      const isListingMatch = m.id.startsWith("match-listing-");
+      const matchListing = isListingMatch ? investorListings.find((l) => l.id === connectionId) : undefined;
+      const matchDemand = !isListingMatch ? tenantDemand.find((d) => d.id === connectionId) : undefined;
+      const propertyImageUrl = matchListing
+        ? matchListing.imageUrl ?? propertyImage(matchListing.id, matchListing.type)
+        : matchDemand
+          ? matchDemand.imageUrl ?? propertyImage(matchDemand.id, matchDemand.propertyType)
+          : undefined;
       out.push({
         id: `match-${m.id}`,
         title: hasRealName ? `Mutual match with ${counterpartLabel}` : "Mutual match",
-        body: `${m.propertyAddress}, ${m.city}`,
+        body: `on ${m.propertyAddress}, ${m.city}`,
         to: `/app/matches?open=${encodeURIComponent(connectionId)}&tab=matched`,
         personName: hasRealName ? counterpartLabel : undefined,
         personInitials: hasRealName ? initialsOf(counterpartLabel) : undefined,
         personPhotoUrl: hasRealName ? avatarFor(counterpartLabel) : undefined,
         icon: hasRealName ? undefined : "🤝",
+        propertyImageUrl,
       });
     });
 
@@ -336,12 +401,13 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
               n === 1
                 ? `${first.name} is interested`
                 : `${first.name} and ${n - 1} other${n - 1 === 1 ? "" : "s"} interested`,
-            body: l.address,
+            body: `on ${l.address}`,
             to: `/app/matches?open=${encodeURIComponent(l.id)}&tab=incoming`,
             personName: n === 1 ? first.name : undefined,
             personInitials: n === 1 ? first.initials : undefined,
             personPhotoUrl: n === 1 ? avatarFor(first.name) : undefined,
             icon: n === 1 ? undefined : "👥",
+            propertyImageUrl: l.imageUrl ?? propertyImage(l.id, l.type),
           });
         }
       });
@@ -350,17 +416,22 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
     // The tenant-side equivalent: an investor responding to a home you
     // posted. Without this, publishing to investors had no way to tell you
     // anything happened - the investor's own "tenant interested" bell above
-    // had no counterpart on this side of the platform.
+    // had no counterpart on this side of the platform. The investor who
+    // responds to a demand is always this browser's own investor persona
+    // (see ListingsContext), so that name is real, not invented.
     if (role === "tenant") {
       tenantDemand
         .filter((d) => d.source === "imported" && hasInvestorResponded(d.id))
         .forEach((d) => {
           out.push({
             id: `investor-interest-${d.id}`,
-            title: "An investor is interested",
-            body: `${d.minBeds === 0 ? "Studio" : `${d.minBeds}-bedroom`} ${d.propertyType.toLowerCase()} in ${d.city}`,
+            title: `${namesByRole.investor} is interested`,
+            body: `on ${d.minBeds === 0 ? "Studio" : `${d.minBeds}-bedroom`} ${d.propertyType.toLowerCase()} in ${d.city}`,
             to: `/app/matches?open=${encodeURIComponent(d.id)}&tab=incoming`,
-            icon: "🏠",
+            personName: namesByRole.investor,
+            personInitials: initialsOf(namesByRole.investor),
+            personPhotoUrl: avatarFor(namesByRole.investor),
+            propertyImageUrl: d.imageUrl ?? propertyImage(d.id, d.propertyType),
           });
         });
     }
@@ -368,7 +439,9 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
     // Either side ending an approach is news to the other side - the one who
     // reached out learns it was declined, the one who received it learns it
     // was pulled back. Both land in the same Archive the notification links
-    // to, so there's always something real to find there.
+    // to, so there's always something real to find there. Named and
+    // pictured, not just an envelope icon, so it reads as a real event
+    // ("Sam Carter declined your request") rather than a bare status flag.
     connections
       .filter((c) => c.rejected && (role === "investor" || role === "tenant"))
       .forEach((c) => {
@@ -379,22 +452,47 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
         const listing = c.kind === "listing" ? investorListings.find((l) => l.id === c.id) : undefined;
         const demand = c.kind === "demand" ? tenantDemand.find((d) => d.id === c.id) : undefined;
         const body = listing
-          ? listing.address
+          ? `on ${listing.address}`
           : demand
-            ? `${demand.minBeds === 0 ? "Studio" : `${demand.minBeds}-bedroom`} ${demand.propertyType.toLowerCase()} in ${demand.city}`
-            : "A property";
+            ? `on ${demand.minBeds === 0 ? "Studio" : `${demand.minBeds}-bedroom`} ${demand.propertyType.toLowerCase()} in ${demand.city}`
+            : "on a property";
+        const actorName = rejectionActorName(c, listing, demand, namesByRole);
+        const title = actorName
+          ? c.rejectedBy === "recipient"
+            ? `${actorName} declined your request`
+            : `${actorName} withdrew their request`
+          : c.rejectedBy === "recipient"
+            ? "Your request was declined"
+            : "A request was withdrawn";
+        const propertyImageUrl = listing
+          ? listing.imageUrl ?? propertyImage(listing.id, listing.type)
+          : demand
+            ? demand.imageUrl ?? propertyImage(demand.id, demand.propertyType)
+            : undefined;
         out.push({
           id: `rejected-${c.id}-${c.rejectedAt}`,
-          title: c.rejectedBy === "recipient" ? "Your request was declined" : "A request was withdrawn",
+          title,
           body,
           to: `/app/matches?open=${encodeURIComponent(c.id)}&tab=archive`,
-          icon: "🗂",
+          personName: actorName,
+          personInitials: actorName ? initialsOf(actorName) : undefined,
+          personPhotoUrl: actorName ? avatarFor(actorName) : undefined,
+          icon: actorName ? undefined : "🗂",
+          propertyImageUrl,
         });
       });
 
     threads.forEach((t) => {
       const last = t.messages[t.messages.length - 1];
       if (last && last.from === "them") {
+        const propertyId = propertyIdFromCounterpartyId(t.counterpartyId);
+        const msgListing = propertyId ? investorListings.find((l) => l.id === propertyId) : undefined;
+        const msgDemand = propertyId ? tenantDemand.find((d) => d.id === propertyId) : undefined;
+        const propertyImageUrl = msgListing
+          ? msgListing.imageUrl ?? propertyImage(msgListing.id, msgListing.type)
+          : msgDemand
+            ? msgDemand.imageUrl ?? propertyImage(msgDemand.id, msgDemand.propertyType)
+            : undefined;
         out.push({
           id: `msg-${t.counterpartyId}-${last.id}`,
           title: `New message from ${t.counterpartyName}`,
@@ -403,6 +501,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
           personName: t.counterpartyName,
           personInitials: initialsOf(t.counterpartyName),
           personPhotoUrl: avatarFor(t.counterpartyName),
+          propertyImageUrl,
         });
       }
     });
@@ -412,6 +511,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
     matches,
     threads,
     role,
+    namesByRole,
     connections,
     investorListings,
     interestedTenantsFor,
@@ -500,7 +600,7 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
             {notes.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-brand-muted">You're all caught up.</p>
             ) : (
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-[28rem] overflow-y-auto">
                 {notes.map((n) => {
                   const isUnread = !readIds.includes(n.id);
                   return (
@@ -512,28 +612,45 @@ export default function TopBar({ onMenu }: { onMenu?: () => void }) {
                         setOpenPanel(null);
                         navigate(n.to);
                       }}
-                      className="flex w-full items-start gap-3 border-b border-brand-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-brand-surface"
+                      className="flex w-full items-start gap-3.5 border-b border-brand-border px-4 py-4 text-left transition-colors last:border-0 hover:bg-brand-surface"
                     >
                       <span
-                        className={`mt-2 h-2 w-2 flex-shrink-0 rounded-full ${
+                        className={`mt-2.5 h-2 w-2 flex-shrink-0 rounded-full ${
                           isUnread ? "bg-brand-cta" : "bg-brand-border"
                         }`}
                       />
-                      {n.personName ? (
-                        <Avatar
-                          name={n.personName}
-                          initials={n.personInitials ?? "?"}
-                          photoUrl={n.personPhotoUrl}
-                          size="sm"
-                        />
-                      ) : (
-                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-surface text-base">
-                          {n.icon ?? "🔔"}
+                      {/* The person (or a generic mark, for a "several
+                          people" notification) is the main picture; when
+                          this is also about a specific property, its photo
+                          rides along as a small badge overlapping the
+                          bottom-right corner - "who" stays primary, "what
+                          property" is still visible at a glance. */}
+                      <span className="relative flex-shrink-0">
+                        {n.personName ? (
+                          <Avatar
+                            name={n.personName}
+                            initials={n.personInitials ?? "?"}
+                            photoUrl={n.personPhotoUrl}
+                            size="md"
+                          />
+                        ) : (
+                          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-surface text-xl">
+                            {n.icon ?? "🔔"}
+                          </span>
+                        )}
+                        {n.propertyImageUrl && (
+                          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center overflow-hidden rounded-full ring-2 ring-white">
+                            <img src={n.propertyImageUrl} alt="" className="h-full w-full object-cover" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold leading-snug text-brand-ink">
+                          {n.title}
                         </span>
-                      )}
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-brand-ink">{n.title}</span>
-                        <span className="block truncate text-xs text-brand-muted">{n.body}</span>
+                        <span className="mt-0.5 block text-[13px] leading-snug text-brand-muted">
+                          {n.body}
+                        </span>
                       </span>
                     </button>
                   );

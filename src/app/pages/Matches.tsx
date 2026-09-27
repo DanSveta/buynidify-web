@@ -110,6 +110,7 @@ function MatchDetailPanel({
   dealProperty,
   viewerRole,
   onAdvanceDeal,
+  onCompleteDeal,
   onClose,
   onAccept,
   onNudge,
@@ -125,6 +126,7 @@ function MatchDetailPanel({
   dealProperty?: ImportedProperty;
   viewerRole: "investor" | "tenant";
   onAdvanceDeal: (by: AgreementActor) => void;
+  onCompleteDeal: () => void;
   onClose: () => void;
   onAccept: () => void;
   onNudge: () => void;
@@ -162,11 +164,14 @@ function MatchDetailPanel({
                   {row.title}
                 </h3>
                 <p className="text-sm text-brand-muted">{row.address}, {row.city}</p>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg bg-brand-surface px-2 py-2">
-                    <p className="text-[10px] uppercase text-brand-muted">Price</p>
-                    <p className="text-sm font-semibold text-brand-ink">{row.priceLabel}</p>
-                  </div>
+                {/* Price gets its own full-width row - crammed into a
+                    third of a 3-column grid like Beds/Type, "£X to buy /
+                    £Y/mo" wrapped onto three ugly lines. */}
+                <div className="mt-3 rounded-lg bg-brand-surface px-3 py-2 text-left">
+                  <p className="text-[10px] uppercase text-brand-muted">Price</p>
+                  <p className="text-sm font-semibold leading-snug text-brand-ink">{row.priceLabel}</p>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-center">
                   <div className="rounded-lg bg-brand-surface px-2 py-2">
                     <p className="text-[10px] uppercase text-brand-muted">Beds</p>
                     <p className="text-sm font-semibold text-brand-ink">
@@ -229,6 +234,7 @@ function MatchDetailPanel({
               tenant={row.tenantProfile}
               viewerRole={viewerRole}
               onAdvance={onAdvanceDeal}
+              onComplete={onCompleteDeal}
               compact
               property={{
                 title: dealProperty.title,
@@ -297,6 +303,7 @@ export default function Matches() {
     importedProperties,
     updateImportedProperty,
     advanceAgreement,
+    completeAgreement,
     sendMessage,
   } = useListings();
 
@@ -417,6 +424,34 @@ export default function Matches() {
     [connections, investorListings, tenantDemand, namesByRole, isTenant]
   );
 
+  // Backfill: a demand match accepted before this "next steps" wiring
+  // existed (see accept() below) has no agreement and never will on its
+  // own - it just sits at "matched" forever with no progress tracker. Catch
+  // it up the first time it's seen, the same way the listing side has
+  // always gotten one at accept time, rather than leaving already-matched
+  // demand deals stuck with nowhere to go.
+  useEffect(() => {
+    connections
+      .filter((c) => c.kind === "demand" && c.accepted && !c.rejected)
+      .forEach((c) => {
+        const demand = tenantDemand.find((d) => d.id === c.id);
+        if (!demand || demand.source !== "imported") return;
+        const property = importedProperties.find((p) => p.id === c.id);
+        if (!property || property.agreement) return;
+        const tenantProfile = selfProfile(`tenant-${c.id}`, namesByRole.tenant, "Tenant");
+        updateImportedProperty(property.id, {
+          agreement: {
+            tenantId: "you",
+            tenantName: tenantProfile.name,
+            tenantInitials: tenantProfile.initials,
+            stage: "matched",
+            startedAt: c.acceptedAt ?? new Date().toISOString(),
+          },
+        });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connections, tenantDemand, importedProperties, namesByRole]);
+
   const matched = rows.filter((r) => r.connection.accepted && !r.connection.rejected);
   // What you sent: tenants approach listings, investors approach demand.
   const outgoing = rows.filter(
@@ -512,6 +547,7 @@ export default function Matches() {
           : fallbackTenantProfile(p.agreement!),
       isExample: false,
       onAdvance: (by) => advanceAgreement(p.id, by),
+      onComplete: () => completeAgreement(p.id),
     }));
     const example: DealCard = {
       id: exampleDeal.id,
@@ -525,7 +561,7 @@ export default function Matches() {
       isExample: true,
     };
     return [...real, example];
-  }, [realDeals, namesByRole, advanceAgreement]);
+  }, [realDeals, namesByRole, advanceAgreement, completeAgreement]);
 
   // A "deal moved forward" notification links here as
   // /app/matches?deal=<propertyId> - open that deal card directly.
@@ -588,16 +624,35 @@ export default function Matches() {
   function accept(row: Row) {
     acceptConnection(row.connection.id);
     const property = importedProperties.find((p) => p.id === row.connection.id);
-    if (property && !property.agreement && row.connection.kind === "listing" && row.counterpartyRole === "tenant") {
-      updateImportedProperty(property.id, {
-        agreement: {
-          tenantId: "you",
-          tenantName: row.profile.name,
-          tenantInitials: row.profile.initials,
-          stage: "matched",
-          startedAt: new Date().toISOString(),
-        },
-      });
+    if (property && !property.agreement) {
+      if (row.connection.kind === "listing" && row.counterpartyRole === "tenant") {
+        updateImportedProperty(property.id, {
+          agreement: {
+            tenantId: "you",
+            tenantName: row.profile.name,
+            tenantInitials: row.profile.initials,
+            stage: "matched",
+            startedAt: new Date().toISOString(),
+          },
+        });
+      } else if (row.connection.kind === "demand" && row.counterpartyRole === "investor") {
+        // Same "next steps" wiring, the other way round: this is your own
+        // demand (a "wanted" post) and your investor persona just agreed to
+        // fulfil it. Without this, a demand match had nowhere to go - no
+        // agreement ever got created, so My Properties/Deal Tracker had
+        // nothing to show and the deal just stopped at "matched" with no
+        // progress tracker. tenantProfile here is always your own tenant
+        // persona (this is your demand), not the investor counterparty.
+        updateImportedProperty(property.id, {
+          agreement: {
+            tenantId: "you",
+            tenantName: row.tenantProfile.name,
+            tenantInitials: row.tenantProfile.initials,
+            stage: "matched",
+            startedAt: new Date().toISOString(),
+          },
+        });
+      }
     }
     setOpenRow(null);
   }
@@ -860,6 +915,7 @@ export default function Matches() {
           dealProperty={openRowDealProperty}
           viewerRole={viewerRole}
           onAdvanceDeal={(by) => openRowDealProperty && advanceAgreement(openRowDealProperty.id, by)}
+          onCompleteDeal={() => openRowDealProperty && completeAgreement(openRowDealProperty.id)}
           onClose={() => setOpenRow(null)}
           onAccept={() => accept(openRow)}
           onNudge={() => nudgeConnection(openRow.connection.id)}

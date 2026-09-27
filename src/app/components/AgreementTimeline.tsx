@@ -94,6 +94,7 @@ export default function AgreementTimeline({
   tenant,
   viewerRole,
   onAdvance,
+  onComplete,
   compact = false,
   property,
 }: {
@@ -103,6 +104,10 @@ export default function AgreementTimeline({
   viewerRole: "investor" | "tenant";
   /** Omit for a read-only view (the worked example). */
   onAdvance?: (by: AgreementActor) => void;
+  /** Fast-forwards every remaining stage in one go - for the demo, so
+   *  walking a deal to completion doesn't mean pressing advance five
+   *  separate times. Omit for a read-only view, same as onAdvance. */
+  onComplete?: () => void;
   /** A shorter rendering for embedding inside a card that already has its
    *  own property header. */
   compact?: boolean;
@@ -229,6 +234,22 @@ export default function AgreementTimeline({
                 }`}
               >
                 {demoLabel[next.id] ?? `Mark "${next.label}" done (demo)`}
+              </button>
+            )}
+            {/* Per Véta: "I don't want to click five times when I'm doing
+                demo." One click walks every remaining stage straight to
+                completion - real dated history for each one, just not five
+                separate messages about it (see completeAgreement). Only
+                shown once there's actually more than one step left, so it
+                never sits next to the real advance button doing the same
+                single thing. */}
+            {onComplete && stageIndex(next.id) < agreementSteps.length - 1 && (
+              <button
+                type="button"
+                onClick={onComplete}
+                className="mt-2 w-full cursor-pointer rounded-lg border border-brand-border px-4 py-2 text-xs font-semibold text-brand-muted transition-colors hover:border-brand-blue hover:text-brand-blue"
+              >
+                Skip ahead: complete the whole purchase (demo)
               </button>
             )}
           </div>

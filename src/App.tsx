@@ -19,7 +19,6 @@ import { ProfileProvider } from "./app/context/ProfileContext";
 import { AuthGateProvider } from "./app/context/AuthGateContext";
 import Overview from "./app/pages/Overview";
 import MyProperties from "./app/pages/MyProperties";
-import Search from "./app/pages/Search";
 import Shortlist from "./app/pages/Shortlist";
 import Matches from "./app/pages/Matches";
 import Profile from "./app/pages/Profile";
@@ -83,7 +82,12 @@ export default function App() {
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<Overview />} />
             <Route path="my-properties" element={<MyProperties />} />
-            <Route path="search" element={<Search />} />
+            {/* Search is never a dashboard-chrome page - it's the same public
+                /search page for everyone, signed in or not, the way a normal
+                property portal (or Airbnb) never has a separate "logged-in"
+                search view. A bookmark to the old /app/search still lands
+                somewhere useful instead of 404ing. */}
+            <Route path="search" element={<Navigate to="/search" replace />} />
             <Route path="shortlist" element={<Shortlist />} />
             <Route path="matches" element={<Matches />} />
             <Route path="profile" element={<Profile />} />

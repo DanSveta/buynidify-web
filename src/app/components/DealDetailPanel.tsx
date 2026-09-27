@@ -25,6 +25,8 @@ export type DealCard = {
   isExample: boolean;
   /** Missing for the example deal - it's read-only. */
   onAdvance?: (by: AgreementActor) => void;
+  /** Same read-only exception as onAdvance. */
+  onComplete?: () => void;
 };
 
 /** A tenant chosen from the seeded "other people interested" list, not this
@@ -91,6 +93,7 @@ export default function DealDetailPanel({
               tenant={deal.tenant}
               viewerRole={viewerRole}
               onAdvance={deal.onAdvance}
+              onComplete={deal.onComplete}
             />
           </div>
         </div>

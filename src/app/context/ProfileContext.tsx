@@ -168,7 +168,7 @@ export function resetPersistedProfile(role: "investor" | "tenant" | "corporate",
     middleName: "",
   };
   try {
-    window.localStorage.setItem(`buynidify:profile:v2:${role}`, JSON.stringify(fresh));
+    window.localStorage.setItem(`buynidify:profile:v3:${role}`, JSON.stringify(fresh));
   } catch {
     // Storage full or blocked - the demo still works for this session.
   }
@@ -191,13 +191,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const fallbackFirst = personaName.trim().split(/\s+/)[0] ?? "";
   const fallbackLast = personaName.trim().split(/\s+/).slice(1).join(" ");
 
-  // "-v2": browsers from earlier this session saved a profile under the
-  // un-versioned key while the shared-defaults bug was still live, so that
-  // stored (wrong) data would otherwise keep winning over these new
-  // role-specific defaults forever - a persisted value always beats a
-  // fresh default. New key name, clean slate, same reasoning as the names
-  // fix in RoleContext.
-  const [profile, setProfile] = usePersistedState<UserProfile>(`buynidify:profile:v2:${roleKey}`, {
+  // "-v3": a race in usePersistedState (now fixed - see its comment) could
+  // write one persona's profile into another persona's storage key the
+  // moment you switched roles, so a "-v2" browser can have an investor
+  // profile that's actually Sam Carter's tenant data baked in, or vice
+  // versa - a persisted value always beats a fresh default, so fixing the
+  // race alone doesn't repair a browser that's already corrupted. New key
+  // name, clean slate, same reasoning as the v1->v2 bump above and the
+  // names fix in RoleContext.
+  const [profile, setProfile] = usePersistedState<UserProfile>(`buynidify:profile:v3:${roleKey}`, {
     ...roleDefaults,
     // If a name was typed at login, that's the person's own name, so it wins
     // over the stand-in - otherwise fall back to this persona's own default

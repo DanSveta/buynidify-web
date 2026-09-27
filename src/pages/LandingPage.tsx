@@ -4,6 +4,7 @@ import Hero from "../sections/Hero";
 import FeaturedProperties from "../sections/FeaturedProperties";
 import ChooseYourJourneyShowcaseCompact from "../sections/ChooseYourJourneyShowcaseCompact";
 import HowItWorks from "../sections/HowItWorks";
+import AISolutions from "../sections/AISolutions";
 import PropertyNiches from "../sections/PropertyNiches";
 import WhyBuynidify from "../sections/WhyBuynidify";
 import Testimonials from "../sections/Testimonials";
@@ -27,10 +28,12 @@ export default function LandingPage() {
         <Hero />
         <ChooseYourJourneyShowcaseCompact />
         <HowItWorks />
-        {/* Right after How It Works: this is the natural next beat in the
-            "here's how the process works" story (manual search -> automated
-            matching -> now here's the AI doing the relocation legwork too),
-            before the page shifts into differentiators and social proof. */}
+        {/* Right after How It Works: the three-AI-solutions story (analysis,
+            relocation, support) as one coherent highlight, followed
+            immediately by Relocate AI's own deeper feature section - keeps
+            every AI capability in one run of the page instead of scattering
+            it, per Véta's request to foreground all three. */}
+        <AISolutions />
         <RelocationAI />
         <PropertyNiches />
         <WhyBuynidify />

@@ -99,6 +99,7 @@ export default function Messages() {
     importedProperties,
     connectionFor,
     advanceAgreement,
+    completeAgreement,
   } = useListings();
   const { role, namesByRole } = useRole();
   const { fullName: myName } = useProfile();
@@ -374,25 +375,55 @@ export default function Messages() {
                     // Every deal-progress narration - Buynidify's own steps
                     // AND the ones voiced as the tenant/investor (deposit
                     // paid, purchase complete) - renders in this same card
-                    // form. Per Véta: "all this... is updates", so nothing
-                    // about the deal progressing should look like an
-                    // ordinary chat bubble, whoever it's voiced as. The
-                    // badge and colour just say who it's from.
+                    // form, never as an ordinary chat bubble. Per Véta, the
+                    // three voices need to actually look different from each
+                    // other (before, "tenant" and "investor" shared one
+                    // identical blue) and the card needs to read in one
+                    // glance, not as a paragraph - so it shows `short`
+                    // (a headline), not the full detail sentence; the
+                    // complete wording still lives in the deal's own
+                    // timeline for anyone who opens it.
                     (() => {
-                      const badge =
+                      const isPayment = m.card?.kind === "payment";
+                      const theme =
                         m.senderRole === "tenant"
-                          ? { label: "Tenant update", tone: "border-brand-blue/30 bg-brand-blue-light/60", chip: "bg-brand-blue text-white", text: "text-brand-blue" }
+                          ? {
+                              label: isPayment ? "Payment" : "Tenant update",
+                              tone: "border-emerald-500/25 bg-emerald-500/10",
+                              chip: "bg-emerald-600 text-white",
+                              text: "text-emerald-700",
+                            }
                           : m.senderRole === "investor"
-                            ? { label: "Investor update", tone: "border-brand-blue/30 bg-brand-blue-light/60", chip: "bg-brand-blue text-white", text: "text-brand-blue" }
-                            : { label: "Buynidify update", tone: "border-brand-gold/40 bg-brand-gold/10", chip: "bg-brand-gold text-brand-ink", text: "text-brand-gold-dark" };
+                            ? {
+                                label: "Investor update",
+                                tone: "border-brand-blue/25 bg-brand-blue-light/60",
+                                chip: "bg-brand-blue text-white",
+                                text: "text-brand-blue",
+                              }
+                            : {
+                                label: "Buynidify update",
+                                tone: "border-brand-gold/40 bg-brand-gold/10",
+                                chip: "bg-brand-gold text-brand-ink",
+                                text: "text-brand-gold-dark",
+                              };
+                      // Payment is always the tenant paying a deposit that
+                      // Buynidify holds - name both sides explicitly, the
+                      // way a real receipt would, rather than a bare figure
+                      // with no context for who paid or where it's held.
+                      const tenantName = relatedProperty?.agreement?.tenantName ?? activeCounterparty?.name ?? "Tenant";
+                      const headline = m.card?.short ?? m.body;
                       return (
                         <div key={m.id} className="my-3 flex justify-center">
-                          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
-                            <div className={`flex items-center gap-2 border-b px-4 py-2 ${badge.tone}`}>
-                              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${badge.chip}`}>
-                                {badge.label[0]}
+                          <div
+                            className={`w-full max-w-sm overflow-hidden rounded-2xl border bg-white shadow-sm ${
+                              isPayment ? "border-emerald-500/40" : "border-brand-border"
+                            }`}
+                          >
+                            <div className={`flex items-center gap-2 border-b px-4 py-2 ${theme.tone}`}>
+                              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${theme.chip}`}>
+                                {isPayment ? "£" : theme.label[0]}
                               </span>
-                              <p className={`text-xs font-bold uppercase tracking-wide ${badge.text}`}>{badge.label}</p>
+                              <p className={`text-xs font-bold uppercase tracking-wide ${theme.text}`}>{theme.label}</p>
                               <span className="ml-auto text-[10px] text-brand-muted">
                                 {new Date(m.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                               </span>
@@ -405,15 +436,45 @@ export default function Messages() {
                                   className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
                                 />
                               )}
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 {m.card?.propertyTitle && (
                                   <p className="truncate text-[11px] font-semibold text-brand-muted">{m.card.propertyTitle}</p>
                                 )}
-                                <p className="text-sm text-brand-ink">{m.body}</p>
-                                {m.card?.amount !== undefined && (
-                                  <p className="mt-1 text-xs font-bold text-brand-ink">
-                                    £{m.card.amount.toLocaleString("en-GB")}
-                                  </p>
+                                {isPayment && m.card?.amount !== undefined ? (
+                                  // A receipt, not a status line: the amount
+                                  // is the headline, with who paid it and
+                                  // that Buynidify holds it underneath -
+                                  // Airbnb-style, per Véta.
+                                  <>
+                                    <p className="text-lg font-bold leading-snug text-brand-ink">
+                                      £{m.card.amount.toLocaleString("en-GB")}
+                                    </p>
+                                    <p className="text-xs text-brand-muted">
+                                      Paid by {tenantName} · held securely by Buynidify
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-sm font-semibold leading-snug text-brand-ink">{headline}</p>
+                                    {m.card?.amount !== undefined && (
+                                      <p className="mt-1 text-xs font-bold text-brand-ink">
+                                        £{m.card.amount.toLocaleString("en-GB")}
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                                {/* Per Véta: the investor - the side who'd
+                                    actually want to file this away - gets a
+                                    visible next step right on the card,
+                                    rather than the conversation just going
+                                    quiet once a request is declined/withdrawn. */}
+                                {m.card?.kind === "decline" && role === "investor" && m.card.propertyId && (
+                                  <Link
+                                    to={`/app/matches?open=${encodeURIComponent(m.card.propertyId)}&tab=archive`}
+                                    className="mt-2 inline-block text-xs font-semibold text-brand-blue hover:underline"
+                                  >
+                                    Archive this →
+                                  </Link>
                                 )}
                               </div>
                             </div>
@@ -497,6 +558,7 @@ export default function Messages() {
                         tenant={agreementTenant}
                         viewerRole={viewerRole}
                         onAdvance={(by: AgreementActor) => advanceAgreement(relatedProperty.id, by)}
+                        onComplete={() => completeAgreement(relatedProperty.id)}
                         compact
                         property={{
                           title: relatedProperty.title,

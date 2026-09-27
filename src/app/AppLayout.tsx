@@ -252,7 +252,7 @@ export default function AppLayout() {
                 <svg
                   viewBox="0 0 24 24"
                   aria-hidden
-                  className="h-3.5 w-3.5 flex-shrink-0 fill-current opacity-50"
+                  className="h-3.5 w-3.5 flex-shrink-0 fill-red-500 text-red-500"
                 >
                   <path d="M12 20.5s-7.5-4.6-7.5-9.8A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 3.3c0 5.2-7.5 9.8-7.5 9.8Z" />
                 </svg>

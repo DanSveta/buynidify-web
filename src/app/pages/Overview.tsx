@@ -1,9 +1,15 @@
 import { Link } from "react-router-dom";
 import { useRole } from "../context/RoleContext";
-import { useListings, type InvestorListing, type TenantDemandEntry } from "../context/ListingsContext";
+import { useListings, daysSince, type InvestorListing, type TenantDemandEntry } from "../context/ListingsContext";
 import { useFavorites } from "../context/FavoritesContext";
 import DashboardGreeting from "../components/DashboardGreeting";
+import ActivityChart, { bucketDailyCumulative } from "../components/ActivityChart";
 import { propertyImage } from "../utils/propertyImages";
+
+// How many days the Overview trend charts cover. Long enough to show real
+// movement, short enough that a fresh demo account's seed history (see
+// seedConnections.ts, spread over the last ~3 weeks) fills most of it.
+const TREND_WINDOW_DAYS = 21;
 
 const gbp = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -206,11 +212,20 @@ function InvestorOverview() {
   const needsPublishing = mine.filter((property) => property.analysis && !property.published);
   const incoming = connections.filter((connection) => connection.kind === "listing" && connection.by === "tenant" && !connection.accepted);
 
+  // Tenant signals is the one row of the four with a real time dimension:
+  // every interested tenant (real or seeded) already carries a `daysAgo`,
+  // the same number the stat card above sums to get `tenantSignals` - so
+  // bucketing these exactly reproduces that total on the chart's last point.
+  const tenantSignalDaysAgo = investorListings.flatMap((listing) =>
+    interestedTenantsFor(listing.id).map((t) => t.daysAgo)
+  );
+  const tenantSignalsTrend = bucketDailyCumulative(tenantSignalDaysAgo, TREND_WINDOW_DAYS);
+
   return (
     <div>
       <DashboardGreeting
         subtitle="A live view of your property opportunities, tenant demand and next actions."
-        action={<Link to="/app/search" className="rounded-xl bg-brand-cta px-4 py-2.5 text-sm font-semibold text-brand-cta-text shadow-sm transition-transform hover:-translate-y-0.5">+ Add a property</Link>}
+        action={<Link to="/search" className="rounded-xl bg-brand-cta px-4 py-2.5 text-sm font-semibold text-brand-cta-text shadow-sm transition-transform hover:-translate-y-0.5">+ Add a property</Link>}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -223,15 +238,22 @@ function InvestorOverview() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
           <SectionTitle title="Portfolio breakdown" subtitle="Where your own properties actually stand right now." to="/app/my-properties" link="Open portfolio" />
-          <div className="mt-6">
+          <div className="mt-6 space-y-6">
             <BreakdownBars
               rows={[
                 { label: "Your properties", value: mine.length },
                 { label: "Published to tenants", value: live.length },
-                { label: "Tenant signals", value: tenantSignals },
                 { label: "Agreements in progress", value: agreements.length },
               ]}
             />
+            <div>
+              <p className="mb-2 text-xs font-semibold text-brand-ink">Tenant signals · last {TREND_WINDOW_DAYS} days</p>
+              <ActivityChart
+                days={TREND_WINDOW_DAYS}
+                series={[{ id: "signals", label: "Tenant signals", color: "blue", values: tenantSignalsTrend }]}
+                emptyHint="Tenant signals will start trending here once someone shows interest in one of your properties."
+              />
+            </div>
           </div>
         </section>
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
@@ -296,11 +318,23 @@ function TenantOverview() {
   ).length;
   const readiness = requests.length === 0 ? 50 : Math.min(100, 55 + requests.filter((property) => property.analysis).length * 12 + mutualMatches * 15);
 
+  // Interest sent and investor responses are the two rows with a real time
+  // dimension - both are ConnectionRecords with a genuine `at` timestamp
+  // (live, or from the small fixed seed history in seedConnections.ts).
+  const tenantInterestTrend = bucketDailyCumulative(
+    tenantInterest.map((c) => daysSince(c.at)),
+    TREND_WINDOW_DAYS
+  );
+  const investorResponsesTrend = bucketDailyCumulative(
+    investorResponses.map((c) => daysSince(c.at)),
+    TREND_WINDOW_DAYS
+  );
+
   return (
     <div>
       <DashboardGreeting
         subtitle="Your home search, investor interest and next steps in one place."
-        action={<Link to="/app/search" className="rounded-xl bg-brand-cta px-4 py-2.5 text-sm font-semibold text-brand-cta-text shadow-sm transition-transform hover:-translate-y-0.5">Find a home</Link>}
+        action={<Link to="/search" className="rounded-xl bg-brand-cta px-4 py-2.5 text-sm font-semibold text-brand-cta-text shadow-sm transition-transform hover:-translate-y-0.5">Find a home</Link>}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -312,16 +346,25 @@ function TenantOverview() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
-          <SectionTitle title="Search breakdown" subtitle="Where your home search actually stands right now." to="/app/search" link="Continue searching" />
-          <div className="mt-6">
+          <SectionTitle title="Search breakdown" subtitle="Where your home search actually stands right now." to="/search" link="Continue searching" />
+          <div className="mt-6 space-y-6">
             <BreakdownBars
               rows={[
                 { label: "Homes available to browse", value: investorListings.length },
                 { label: "Homes requested", value: requests.length },
-                { label: "Interest sent", value: tenantInterest.length },
-                { label: "Investor responses", value: investorResponses.length },
               ]}
             />
+            <div>
+              <p className="mb-2 text-xs font-semibold text-brand-ink">Your search activity · last {TREND_WINDOW_DAYS} days</p>
+              <ActivityChart
+                days={TREND_WINDOW_DAYS}
+                series={[
+                  { id: "interest", label: "Interest sent", color: "blue", values: tenantInterestTrend },
+                  { id: "responses", label: "Investor responses", color: "gold", values: investorResponsesTrend },
+                ]}
+                emptyHint="Send interest on a home or wait for an investor response to see your search trend here."
+              />
+            </div>
           </div>
         </section>
         <section className="rounded-2xl border border-brand-border bg-white p-5 sm:p-6">
@@ -337,7 +380,7 @@ function TenantOverview() {
           <div className="mt-4 space-y-3">
             {investorResponses.length > 0 && <Link to="/app/matches" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-gold/20 text-brand-gold-dark"><Icon name="people" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Review investor interest</span><span className="block text-xs text-brand-muted">An investor may be ready to buy a home you requested.</span></span><span className="text-brand-blue">→</span></Link>}
             <a href="/listings" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="property" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Browse investor opportunities</span><span className="block text-xs text-brand-muted">See homes investors are considering buying.</span></span><span className="text-brand-blue">↗</span></a>
-            <Link to="/app/search" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="heart" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Add a home you found for sale</span><span className="block text-xs text-brand-muted">Ask the investor community to buy it for you to rent.</span></span><span className="text-brand-blue">→</span></Link>
+            <Link to="/search" className="flex items-center gap-3 rounded-xl border border-brand-border p-4 transition-colors hover:border-brand-blue hover:bg-brand-surface"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue"><Icon name="heart" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-brand-ink">Add a home you found for sale</span><span className="block text-xs text-brand-muted">Ask the investor community to buy it for you to rent.</span></span><span className="text-brand-blue">→</span></Link>
           </div>
         </section>
 

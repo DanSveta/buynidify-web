@@ -910,6 +910,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
     updateImportedProperty,
     acceptConnection,
     advanceAgreement,
+    completeAgreement,
   } = useListings();
   const { requireAccount } = useAuthGate();
   const navigate = useNavigate();
@@ -1000,7 +1001,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                 href={listing.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full border border-brand-border px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+                className="rounded-full bg-brand-ink px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black"
               >
                 {portal ? `View on ${portal} ↗` : "View original listing ↗"}
               </a>
@@ -1245,6 +1246,7 @@ function ListingDetail({ listing }: { listing: InvestorListing }) {
                       tenant={agreementTenantProfile}
                       viewerRole={viewerRole}
                       onAdvance={(by) => advanceAgreement(listing.id, by)}
+                      onComplete={() => completeAgreement(listing.id)}
                       property={{
                         title: listing.address,
                         location: listing.city,
@@ -1429,7 +1431,7 @@ function DemandDetail({ demand }: { demand: TenantDemandEntry }) {
                 href={demand.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full border border-brand-border px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:border-brand-blue hover:text-brand-blue"
+                className="rounded-full bg-brand-ink px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black"
               >
                 {portal ? `View on ${portal} ↗` : "View original listing ↗"}
               </a>

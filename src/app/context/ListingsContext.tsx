@@ -5,10 +5,13 @@ import type { Portal } from "../utils/mockFromUrl";
 import {
   investorProfileFor,
   tenantProfileFor,
+  selfProfile,
   type PartyProfile,
 } from "../utils/profiles";
 import { avatarFor } from "../utils/avatars";
+import { propertyImage as fallbackPropertyImage } from "../utils/propertyImages";
 import { seedThreads } from "../data/seedThreads";
+import { seedConnections } from "../data/seedConnections";
 import { useRole } from "./RoleContext";
 
 // Wires the two halves of the platform together across roles, which
@@ -181,6 +184,21 @@ export type Message = {
     propertyLocation?: string;
     propertyImage?: string;
     amount?: number;
+    /** "decline" marks this specifically as a "request declined/withdrawn"
+     *  update, so Messages can add an investor-only "Archive this" action
+     *  beneath it. "payment" marks the tenant's commitment-deposit line so
+     *  it renders as a proper receipt (amount, who paid, that Buynidify
+     *  protects it) instead of a generic update card. Absent for an
+     *  ordinary deal-progress update. */
+    kind?: "decline" | "payment";
+    /** A short, one-line version of the update for the compact card in
+     *  Messages/Matches - e.g. "Agreement signed" rather than the full
+     *  "Agreement signed ✓ - Pre-purchase agreement signed. It sets out
+     *  what happens if either side pulls out." Per Véta: the card shouldn't
+     *  read as a paragraph to get through, the full detail already lives in
+     *  the deal's own timeline for anyone who wants it. Falls back to
+     *  `body` for messages sent before this existed. */
+    short?: string;
   };
   body: string;
   sentAt: string;
@@ -208,6 +226,15 @@ export type MessageThread = {
    *  which role opens the conversation. */
   selfDealing?: boolean;
 };
+
+/** Merges the fixed seed history into whatever's actually stored, the same
+ *  way seedThreads is merged into `threads` - an id already in storage wins,
+ *  so once a seeded connection is nudged/accepted/withdrawn it's the stored
+ *  copy (with the mutation applied) that's read, not the original fixture. */
+function mergeSeedConnections(stored: ConnectionRecord[]): ConnectionRecord[] {
+  const missing = seedConnections.filter((s) => !stored.some((c) => c.id === s.id));
+  return [...stored, ...missing];
+}
 
 function otherRole(r: "investor" | "tenant"): "investor" | "tenant" {
   return r === "investor" ? "tenant" : "investor";
@@ -488,6 +515,19 @@ export function actorForViewer(
   return viewerRole === "tenant" ? "you" : "them";
 }
 
+/** Who actually does a step, regardless of who's looking at it right now -
+ *  the fixed (non-viewer-relative) version of actorForViewer, for logging
+ *  history against the correct real actor rather than whoever happened to
+ *  click "complete" while walking both sides of the demo alone. Mirrors
+ *  AgreementTimeline's own fixedActorFor, which stays viewer-facing (it
+ *  reads the button's own `next` step); this one is for completeAgreement
+ *  below, which walks every remaining step at once with no single "next". */
+function fixedActorForStepActor(actor: (typeof agreementSteps)[number]["actor"]): AgreementActor {
+  if (actor === "Buynidify") return "buynidify";
+  if (actor === "Tenant") return "tenant";
+  return "investor"; // "You" and "You and the tenant"
+}
+
 function stepIndex(stage: AgreementStage): number {
   return agreementSteps.findIndex((s) => s.id === stage);
 }
@@ -626,6 +666,9 @@ type ListingsContextValue = {
   claimGuestProperties: (owner: "investor" | "tenant") => void;
   /** Moves a matched deal on to its next stage. */
   advanceAgreement: (propertyId: string, by: AgreementActor) => void;
+  /** One click, whole rest of the purchase - see completeAgreement's own
+   *  comment. */
+  completeAgreement: (propertyId: string) => void;
 };
 
 const ListingsContext = createContext<ListingsContextValue | null>(null);
@@ -635,9 +678,18 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   // All persisted, so a property added as an investor is still there after
   // signing out and back in as a tenant. Ids are kept as arrays because Sets
   // don't survive JSON.
-  const [connections, setConnections] = usePersistedState<ConnectionRecord[]>(
+  const [storedConnections, setConnections] = usePersistedState<ConnectionRecord[]>(
     "buynidify:connections",
     []
+  );
+  // Seed history (see seedConnections.ts) is merged in for reading, exactly
+  // like seedThreads is merged into `threads` below: an id already present in
+  // storage wins, so a seeded approach that gets nudged/accepted/withdrawn
+  // "graduates" into a real persisted record (see patchConnection/
+  // openConnection) instead of the fixture and a new duplicate both existing.
+  const connections = useMemo(
+    () => mergeSeedConnections(storedConnections),
+    [storedConnections]
   );
   // The two id-only lists this replaced. Kept so a browser with data from an
   // earlier build doesn't lose the interest it had already registered.
@@ -814,7 +866,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
   function openConnection(id: string, kind: "listing" | "demand", by: "tenant" | "investor") {
     setConnections((list) => {
-      const existing = list.find((c) => c.id === id);
+      // Checked against the merged (stored + seed) view, so a listing/demand
+      // that already has seeded history isn't treated as untouched.
+      const existing = mergeSeedConnections(list).find((c) => c.id === id);
       if (!existing) {
         return [...list, { id, kind, by, at: new Date().toISOString(), nudges: 0, accepted: false }];
       }
@@ -822,18 +876,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       // live connection rather than leaving the old rejection stuck in the
       // way of trying again.
       if (existing.rejected) {
-        return list.map((c) =>
-          c.id === id
-            ? {
-                id,
-                kind,
-                by,
-                at: new Date().toISOString(),
-                nudges: 0,
-                accepted: false,
-              }
-            : c
-        );
+        const fresh = { id, kind, by, at: new Date().toISOString(), nudges: 0, accepted: false };
+        const storedAlready = list.some((c) => c.id === id);
+        return storedAlready ? list.map((c) => (c.id === id ? fresh : c)) : [...list, fresh];
       }
       return list;
     });
@@ -856,7 +901,17 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   }
 
   function patchConnection(id: string, patch: Partial<ConnectionRecord>) {
-    setConnections((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setConnections((list) => {
+      // A patch can land on a connection that only exists as seed history so
+      // far - copy it into storage with the patch applied, rather than
+      // silently dropping the mutation because `list` (storage only) doesn't
+      // have that id yet.
+      const current = mergeSeedConnections(list).find((c) => c.id === id);
+      if (!current) return list;
+      const updated = { ...current, ...patch };
+      const storedAlready = list.some((c) => c.id === id);
+      return storedAlready ? list.map((c) => (c.id === id ? updated : c)) : [...list, updated];
+    });
   }
 
   /** Saying yes turns a one-sided approach into a mutual match - and per
@@ -873,17 +928,29 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     if (connection.kind === "listing") {
       // The investor is the one accepting here - the tenant already
       // committed by expressing interest - so the card is voiced as the
-      // investor and lands in the tenant's inbox.
+      // investor and lands in the tenant's inbox. When the listing is one you
+      // published yourself (source "imported"), "the investor" IS your own
+      // investor persona - name it for real via namesByRole, not a hash-
+      // generated fake profile, the same self-dealing pattern Matches.tsx/
+      // Messages.tsx/PropertyPage.tsx use everywhere else.
       const listing = investorListings.find((l) => l.id === id);
       if (!listing) return;
-      const profile = investorProfileFor(listing.id, listing.city, listing.accepts);
+      const listingSelfDealing = listing.source === "imported";
+      const profile = listingSelfDealing
+        ? selfProfile(`investor-${listing.id}`, namesByRole.investor, "Investor")
+        : investorProfileFor(listing.id, listing.city, listing.accepts);
       receiveMessage(
         {
           id: `investor-${listing.id}`,
           name: profile.name,
           context: `${listing.address}, ${listing.city}`,
           profile,
-          audience: "tenant",
+          // A self-published listing has no separate investor account on the
+          // other end - it's this same browser's investor persona - so the
+          // thread isn't locked to one role's inbox the way a real
+          // counterparty's would be; both personas need to see it.
+          audience: listingSelfDealing ? undefined : "tenant",
+          selfDealing: listingSelfDealing,
         },
         `You're matched! I'd like to go ahead with ${listing.address}. Buynidify will be in touch to agree terms and take it from here.`,
         "investor",
@@ -902,17 +969,26 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     if (connection.kind === "demand") {
       // The tenant is the one accepting here - the investor already
       // committed by responding to the demand - so the card is voiced as
-      // the tenant and lands in the investor's inbox.
+      // the tenant and lands in the investor's inbox. Same self-dealing fix
+      // as above: a demand you published yourself (source "imported") is
+      // your own tenant persona, not a fake profile.
       const demand = tenantDemand.find((d) => d.id === id);
       if (!demand) return;
-      const profile = tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds);
+      const demandSelfDealing = demand.source === "imported";
+      const profile = demandSelfDealing
+        ? selfProfile(`tenant-${demand.id}`, namesByRole.tenant, "Tenant")
+        : tenantProfileFor(demand.id, demand.city, demand.targetRentPerMonth, demand.minBeds);
       receiveMessage(
         {
           id: `tenant-${demand.id}`,
           name: profile.name,
           context: `${demand.minBeds} bedroom ${demand.propertyType} wanted in ${demand.city}`,
           profile,
-          audience: "investor",
+          // Same reasoning as the listing branch above: a demand you
+          // published yourself has no separate tenant account on the other
+          // end, so don't lock the thread to one role's inbox.
+          audience: demandSelfDealing ? undefined : "investor",
+          selfDealing: demandSelfDealing,
         },
         `You're matched! I'd love to move forward on this one. Buynidify will be in touch to agree terms and take it from here.`,
         "tenant",
@@ -934,21 +1010,25 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
    *  side (you, on the other persona) can see it was withdrawn rather than
    *  just finding it gone. */
   function withdrawConnection(id: string) {
+    const connection = connections.find((c) => c.id === id);
     patchConnection(id, {
       rejected: true,
       rejectedAt: new Date().toISOString(),
       rejectedBy: "sender",
     });
+    if (connection) noteRejectionInThread(connection, "sender");
   }
 
   /** Saying no to an approach that landed on you. Same archive treatment as
    *  withdrawing, just from the other side of the connection. */
   function declineConnection(id: string) {
+    const connection = connections.find((c) => c.id === id);
     patchConnection(id, {
       rejected: true,
       rejectedAt: new Date().toISOString(),
       rejectedBy: "recipient",
     });
+    if (connection) noteRejectionInThread(connection, "recipient");
   }
 
   /** Chasing someone who hasn't replied.
@@ -1148,14 +1228,183 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         kind: messageKind,
         // Every stage-advance narration carries the property card - it's
         // what makes each one self-explanatory regardless of which page or
-        // thread it's read in. Only the deposit line carries an amount.
-        card: { ...propertyCard, amount: skipToPurchase ? depositAmount : undefined },
+        // thread it's read in. Only the deposit line carries an amount, and
+        // is marked "payment" so it renders as a receipt, not a generic
+        // update. `short` keeps the compact card to one line - the full
+        // detail sentence still lives in the deal's own timeline.
+        card: {
+          ...propertyCard,
+          amount: skipToPurchase ? depositAmount : undefined,
+          kind: skipToPurchase ? "payment" : undefined,
+          short: skipToPurchase ? "Commitment deposit paid" : isCompletion ? "Purchase complete" : finalLabel,
+        },
       }
+    );
+  }
+
+  /** One-click "finish the demo": fast-forwards every remaining stage at
+   *  once instead of making you press advance five separate times to walk
+   *  a purchase from wherever it's at through to completion. Per Véta:
+   *  "I don't want to click five times when I'm doing a demo." Real dated
+   *  history entries are still recorded for every stage skipped over, so
+   *  the timeline itself still reads correctly stage by stage - only the
+   *  *messages* are collapsed, to at most two (a payment receipt, if the
+   *  deposit hadn't already been paid, and one closing update), rather than
+   *  posting five separate mid-purchase cards nobody would read. */
+  function completeAgreement(propertyId: string) {
+    const property = safeImportedProperties.find((p) => p.id === propertyId);
+    const agreement = property?.agreement;
+    if (!property || !agreement) return;
+
+    const current = stepIndex(agreement.stage);
+    const remaining = agreementSteps.slice(current + 1);
+    if (remaining.length === 0) return;
+
+    const now = new Date().toISOString();
+    const history = [...(agreement.history ?? [])];
+    for (const step of remaining) {
+      history.push({ stage: step.id, at: now, by: fixedActorForStepActor(step.actor) });
+    }
+    const finalStage = remaining[remaining.length - 1];
+    updateImportedProperty(propertyId, {
+      agreement: { ...agreement, stage: finalStage.id, history },
+    });
+
+    const threadId = property.owner === "investor" ? `investor-${property.id}` : `tenant-${property.id}`;
+    const selfDealing = agreement.tenantId === "you";
+    const depositAmount = property.published?.rent
+      ? Math.round((property.published.rent * 5) / 4.345)
+      : Math.round(property.price * 0.01);
+    const propertyCard = {
+      propertyId: property.id,
+      propertyTitle: property.title,
+      propertyLocation: property.location,
+      propertyImage: property.imageUrl,
+    };
+    const counterparty = {
+      id: threadId,
+      name: agreement.tenantName,
+      context: property.title,
+      profile: selfDealing
+        ? undefined
+        : {
+            id: `tenant-${agreement.tenantId}`,
+            name: agreement.tenantName,
+            initials: agreement.tenantInitials,
+            role: "Tenant" as const,
+            location: "",
+            memberSince: "",
+            responseTime: "",
+            responseRate: "",
+            photoUrl: avatarFor(agreement.tenantName),
+            verified: { idCheck: true, referencing: true, funds: true },
+            about: "",
+            details: [],
+          },
+      audience: selfDealing ? undefined : ("investor" as const),
+      selfDealing,
+    };
+
+    // The deposit is the one real payment moment in this flow - if fast-
+    // forwarding skipped straight past it, still narrate it as its own
+    // receipt rather than folding a real payment into the generic
+    // completion line further down.
+    if (current < stepIndex("deposit-secured")) {
+      receiveMessage(counterparty, `Commitment deposit paid to secure this purchase.`, "tenant", {
+        kind: "update",
+        card: { ...propertyCard, amount: depositAmount, kind: "payment", short: "Commitment deposit paid" },
+      });
+    }
+
+    receiveMessage(
+      counterparty,
+      `🏁 Completion is done - the purchase has gone through and the property is legally mine. Tenancy setup starts now.`,
+      "investor",
+      { kind: "update", card: { ...propertyCard, short: "Purchase complete" } }
     );
   }
 
   function threadFor(counterpartyId: string) {
     return threads.find((t) => t.counterpartyId === counterpartyId);
+  }
+
+  /** Same lookup as `threadFor`, but against every stored/seeded thread
+   *  regardless of which role is currently signed in - `threads` above is
+   *  filtered to the active role's own audience, which is wrong here: e.g.
+   *  an investor declining a tenant's interest needs to find that
+   *  connection's thread even though its audience is "tenant" (the investor
+   *  is the one speaking into it, not the one it's filtered to show for). */
+  function rawThreadFor(counterpartyId: string): MessageThread | undefined {
+    const stored = storedThreads.find((t) => t.counterpartyId === counterpartyId);
+    if (stored) return normalizeThreadSenders(stored);
+    const seed = seedThreads.find((s) => s.counterpartyId === counterpartyId);
+    return seed ? normalizeThreadSenders(seed) : undefined;
+  }
+
+  /** The counterpartyId convention every property thread uses (see
+   *  acceptConnection above, and Messages.tsx's propertyIdFromCounterpartyId):
+   *  a listing connection's thread is `investor-<id>` (the investor speaking
+   *  into the tenant's inbox), a demand connection's is `tenant-<id>`. */
+  function threadCounterpartyIdFor(connection: ConnectionRecord): string {
+    return connection.kind === "listing" ? `investor-${connection.id}` : `tenant-${connection.id}`;
+  }
+
+  /** Per Véta: ending an approach shouldn't only show up as a bell
+   *  notification - if the two sides already have a conversation going about
+   *  this property, it should say so there too, so the thread itself reads
+   *  as "this flow is done" instead of just going quiet. Voiced as a neutral
+   *  Buynidify system update, the same as every other deal-progress card, not
+   *  as either party - nobody "said" this, the platform is reporting it.
+   *  Skipped when no thread exists yet: there's nothing to narrate into. */
+  function noteRejectionInThread(connection: ConnectionRecord, rejectedBy: "sender" | "recipient") {
+    const counterpartyId = threadCounterpartyIdFor(connection);
+    const existing = rawThreadFor(counterpartyId);
+    if (!existing) return;
+
+    const listing = connection.kind === "listing" ? investorListings.find((l) => l.id === connection.id) : undefined;
+    const demand = connection.kind === "demand" ? tenantDemand.find((d) => d.id === connection.id) : undefined;
+    const propertyTitle = listing
+      ? listing.address
+      : demand
+        ? `${demand.minBeds === 0 ? "Studio" : `${demand.minBeds} bed`} ${demand.propertyType.toLowerCase()} wanted`
+        : undefined;
+    const propertyLocation = listing?.city ?? demand?.city;
+    const propertyImageUrl =
+      listing?.imageUrl ??
+      demand?.imageUrl ??
+      (listing
+        ? fallbackPropertyImage(listing.id, listing.type)
+        : demand
+          ? fallbackPropertyImage(demand.id, demand.propertyType)
+          : undefined);
+
+    const body =
+      rejectedBy === "recipient"
+        ? "This request has been declined. Buynidify has closed this approach - there's nothing further to do here."
+        : "This request has been withdrawn. Buynidify has closed this approach - there's nothing further to do here.";
+
+    receiveMessage(
+      {
+        id: counterpartyId,
+        name: existing.counterpartyName,
+        context: existing.context,
+        profile: existing.profile,
+        audience: existing.audience,
+        selfDealing: existing.selfDealing,
+      },
+      body,
+      "system",
+      {
+        kind: "update",
+        card: {
+          propertyId: connection.id,
+          propertyTitle,
+          propertyLocation,
+          propertyImage: propertyImageUrl,
+          kind: "decline",
+        },
+      }
+    );
   }
 
   function threadKey(thread: MessageThread) {
@@ -1348,6 +1597,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         removeImportedProperty,
         claimGuestProperties,
         advanceAgreement,
+        completeAgreement,
       }}
     >
       {children}

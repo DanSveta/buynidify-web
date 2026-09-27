@@ -162,7 +162,7 @@ function PropertyCard({
   interested: InterestedTenant[];
   onOpenTenant: (tenant: InterestedTenant) => void;
 }) {
-  const { updateImportedProperty, removeImportedProperty, advanceAgreement, acceptConnection } =
+  const { updateImportedProperty, removeImportedProperty, advanceAgreement, completeAgreement, acceptConnection } =
     useListings();
   const { namesByRole } = useRole();
   const { requireAccount } = useAuthGate();
@@ -412,6 +412,7 @@ function PropertyCard({
                 tenant={agreementTenant}
                 viewerRole="investor"
                 onAdvance={(by) => advanceAgreement(property.id, by)}
+                onComplete={() => completeAgreement(property.id)}
                 property={{
                   title: property.title,
                   location: property.location,
@@ -495,9 +496,9 @@ function MyPropertiesInvestor() {
     { tenant: InterestedTenant; context: string; propertyId: string } | null
   >(null);
   const [filter, setFilter] = useState<FilterId>("all");
-  // Signed out the search lives at /search rather than inside the portal, so
-  // every link back to it has to follow.
-  const searchPath = role ? "/app/search" : "/search";
+  // Search is never a dashboard-chrome page - it's the same /search page
+  // for everyone, signed in or not, so every link to it just points there.
+  const searchPath = "/search";
 
   // Signed out, this page shows what you've analysed while browsing.
   const mine = useMemo(
@@ -923,9 +924,11 @@ function MyPropertiesTenant() {
   // (someone actually committed to buy for you) are a separate, later stage
   // and stay in their own section below, same as before.
   const { role, namesByRole } = useRole();
-  const { importedProperties, advanceAgreement, hasInvestorResponded } = useListings();
+  const { importedProperties, advanceAgreement, completeAgreement, hasInvestorResponded } = useListings();
   const [filter, setFilter] = useState<DemandFilterId>("all");
-  const searchPath = role ? "/app/search" : "/search";
+  // Search is never a dashboard-chrome page - it's the same /search page for
+  // everyone, signed in or not, so this just always points there.
+  const searchPath = "/search";
 
   const mine = useMemo(
     () => importedProperties.filter((p) => p.owner === (role ? "tenant" : "guest")),
@@ -1066,6 +1069,7 @@ function MyPropertiesTenant() {
                 tenant={selfProfile(`tenant-${p.id}`, namesByRole.tenant, "Tenant")}
                 viewerRole="tenant"
                 onAdvance={(by) => advanceAgreement(p.id, by)}
+                onComplete={() => completeAgreement(p.id)}
                 property={{
                   title: p.title,
                   location: p.location,

@@ -30,12 +30,25 @@ export function usePersistedState<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => readFromStorage(key, initial));
 
   // If the key itself changes (e.g. a per-role storage key, once the role
-  // becomes known after the first render), re-read from that new key
-  // instead of carrying over whatever was loaded under the old one.
+  // becomes known after the first render, or a role switch), re-read from
+  // that new key instead of carrying over whatever was loaded under the old
+  // one.
   const prevKey = useRef(key);
+  // The persist-write effect below runs in the SAME commit as this one,
+  // right after it, and by then `value` still holds the OLD key's data (the
+  // setValue call here only takes effect on the next render) - so without
+  // this flag, that effect would immediately write the old key's stale
+  // value into the new key, clobbering whatever was really stored there
+  // (e.g. the investor persona's profile getting overwritten with the
+  // tenant persona's, the moment you switch roles). This is exactly the bug
+  // behind "switching roles doesn't change the profile/photo" - once that
+  // wrong write lands, the corrupted value IS what's on disk from then on,
+  // there's nothing left to self-correct back to.
+  const skipNextPersist = useRef(false);
   useEffect(() => {
     if (prevKey.current !== key) {
       prevKey.current = key;
+      skipNextPersist.current = true;
       setValue(readFromStorage(key, initial));
     }
     // Deliberately not depending on `initial` - it's usually a fresh object
@@ -45,6 +58,10 @@ export function usePersistedState<T>(key: string, initial: T) {
   }, [key]);
 
   useEffect(() => {
+    if (skipNextPersist.current) {
+      skipNextPersist.current = false;
+      return;
+    }
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch {

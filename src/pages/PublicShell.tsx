@@ -25,7 +25,6 @@ const bedroomOptions = ["Any", "1", "2", "3", "4+"];
  *  a fresh search without leaving. Submits straight to /search with the
  *  same query params that page already reads. */
 function HeaderSearchPill() {
-  const { role } = useRole();
   const navigate = useNavigate();
   const [location, setLocation] = useState("");
   const [beds, setBeds] = useState("Any");
@@ -37,7 +36,8 @@ function HeaderSearchPill() {
     if (beds !== "Any") params.set("beds", beds);
     if (type !== "Any") params.set("type", type);
     const query = params.toString();
-    navigate(`${role ? "/app/search" : "/search"}${query ? `?${query}` : ""}`);
+    // Search is always the same public page, signed in or not.
+    navigate(`/search${query ? `?${query}` : ""}`);
   }
 
   return (
