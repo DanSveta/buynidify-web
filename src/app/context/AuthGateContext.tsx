@@ -148,7 +148,7 @@ export function AuthGateProvider({ children }: { children: ReactNode }) {
               you navigate to and then have to scroll - per Véta, "whatever
               is below will stay, and that will be on top". */}
           <div
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-brand-border bg-white shadow-2xl"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-brand-border bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="h-1.5 w-full flex-shrink-0 bg-gradient-to-r from-brand-blue via-brand-blue to-brand-gold" />

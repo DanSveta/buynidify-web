@@ -6,6 +6,7 @@ import {
   type ImportedProperty,
   type InterestedTenant,
 } from "../context/ListingsContext";
+import PropertyLinkImporter from "../components/PropertyLinkImporter";
 import TenantProfileModal from "../components/TenantProfileModal";
 import PublishModal from "../components/PublishModal";
 import PublishDemandModal from "../components/PublishDemandModal";
@@ -567,18 +568,20 @@ function MyPropertiesInvestor() {
         </div>
       )}
 
-      {/* Opens Search in a new tab rather than navigating away from My
-          Properties - the dashboard no longer has its own Search Properties
-          tab, so this is the way in now, and a new tab means you don't lose
-          your place here to get to it. */}
+      {/* Opens Search in a new tab - for browsing the portals themselves,
+          not just pasting a link you already have. */}
       <a
         href={searchPath}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
-        + Add a property ↗
+        Search property ↗
       </a>
+
+      {/* Paste-a-link, right here, same as on Search - no more hopping to a
+          new tab if you already have one. */}
+      <PropertyLinkImporter inputOnly />
 
       {/* Pipeline summary */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -984,14 +987,20 @@ function MyPropertiesTenant() {
         investors, then see who's interested in buying it for you.
       </p>
 
+      {/* Opens Search in a new tab - for browsing the portals themselves,
+          not just pasting a link you already have. */}
       <a
         href={searchPath}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-dark"
       >
-        + Add a home ↗
+        Search property ↗
       </a>
+
+      {/* Paste-a-link, right here, same as on Search - no more hopping to a
+          new tab if you already have one. */}
+      <PropertyLinkImporter inputOnly />
 
       {/* Pipeline summary */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

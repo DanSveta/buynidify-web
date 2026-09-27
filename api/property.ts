@@ -38,6 +38,33 @@ export type ScrapedProperty = {
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
 
+// Portal pages carry all kinds of images that aren't the listing photo -
+// redress-scheme badges (Property Redress, TPO, ombudsman), trust logos,
+// social icons, sprites, avatars. None of those should ever end up as the
+// card's picture, so anything matching this gets thrown out wherever an
+// image URL is picked, and the caller falls back to a generated photo.
+const BAD_IMAGE_HINTS =
+  /(logo|redress|ombudsman|sprite|badge|icon|favicon|avatar|placeholder|blank|1x1|pixel|tracking|arla|tpos|naea|rics)/i;
+
+function isLikelyListingPhoto(url?: string): url is string {
+  if (!url) return false;
+  if (BAD_IMAGE_HINTS.test(url)) return false;
+  // A real listing photo comes off a photo CDN with an id-looking path -
+  // long, mostly digits/hex. A page's generic share image (which is what
+  // keeps slipping through as a trust badge or scheme logo) tends to be a
+  // short, human-named file sitting in a shared/static folder instead.
+  // New-build ("new-homes") listings are the worst offenders - they're
+  // often unphotographed and Zoopla falls back to exactly that kind of
+  // generic image - so for those we don't trust an og:image at all.
+  const looksGeneric = /\/(shared|static|assets|common|marketing|brand)\//i.test(url);
+  if (looksGeneric) return false;
+  return /\.(jpe?g|png|webp)(\?|$)/i.test(url) || url.includes("zoocdn") || url.includes("rightmove") || url.includes("onthemarket");
+}
+
+function isNewHomesListing(url: string): boolean {
+  return /\/new-homes\//i.test(url);
+}
+
 function toNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -97,7 +124,7 @@ function parseRightmove(html: string): Partial<ScrapedProperty> {
     price,
     beds,
     type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
-    imageUrl: meta(html, "og:image"),
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
     agent,
   };
 }
@@ -127,7 +154,9 @@ function parseZoopla(html: string): Partial<ScrapedProperty> {
         beds: toNumber(node.counts?.numBedrooms ?? node.bedrooms),
         baths: toNumber(node.counts?.numBathrooms ?? node.bathrooms),
         type: node.propertyType,
-        imageUrl: node.imageUri ?? node.images?.[0]?.url,
+        imageUrl: isLikelyListingPhoto(node.imageUri ?? node.images?.[0]?.url)
+          ? (node.imageUri ?? node.images?.[0]?.url)
+          : undefined,
       };
     }
     for (const value of Object.values(node)) {
@@ -184,7 +213,7 @@ function parseOnTheMarket(html: string): Partial<ScrapedProperty> {
     price,
     beds,
     type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
-    imageUrl: meta(html, "og:image"),
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
     agent,
   };
 }
@@ -210,10 +239,17 @@ function parseReaderText(text: string): Partial<ScrapedProperty> {
 
   // Bathrooms sit in the body next to the bed count.
   const baths = toNumber(text.match(/(\d+)\s*bath\b/i)?.[1]);
-  // First real photo in the page, whichever CDN the portal uses.
-  const imageUrl = text.match(
-    /https:\/\/[^\s)"']*(?:zoocdn|rightmove|onthemarket|akamaized|cloudfront)[^\s)"']*\.(?:jpe?g|png|webp)/i
-  )?.[0] ?? text.match(/https:\/\/[^\s)"']+\.(?:jpe?g|png|webp)/i)?.[0];
+  // First real photo in the page, whichever CDN the portal uses. The reader
+  // dumps the whole page as text, so trust badges (Property Redress, TPO,
+  // ombudsman logos) show up as image links too - skip past those rather
+  // than grabbing the first image link blindly.
+  const cdnMatch = [...text.matchAll(
+    /https:\/\/[^\s)"']*(?:zoocdn|rightmove|onthemarket|akamaized|cloudfront)[^\s)"']*\.(?:jpe?g|png|webp)/gi
+  )].map((m) => m[0]).find(isLikelyListingPhoto);
+  const anyMatch = [...text.matchAll(/https:\/\/[^\s)"']+\.(?:jpe?g|png|webp)/gi)]
+    .map((m) => m[0])
+    .find(isLikelyListingPhoto);
+  const imageUrl = cdnMatch ?? anyMatch;
 
   return {
     address,
@@ -240,7 +276,7 @@ function parseGeneric(html: string): Partial<ScrapedProperty> {
     type: haystack.match(
       /\b(detached house|semi-detached house|terraced house|end of terrace|townhouse|bungalow|maisonette|apartment|flat|studio)\b/i
     )?.[0],
-    imageUrl: meta(html, "og:image"),
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
   };
 }
 
@@ -386,6 +422,7 @@ export async function scrapeProperty(url: string, debug = false): Promise<Scrape
       source,
       url,
       ...fromReader,
+      imageUrl: isNewHomesListing(url) ? undefined : fromReader.imageUrl,
       city,
       error: readable ? undefined : "Couldn't read the property details from that page.",
     };
@@ -407,7 +444,7 @@ export async function scrapeProperty(url: string, debug = false): Promise<Scrape
     beds: specific.beds ?? generic.beds,
     baths: specific.baths ?? generic.baths,
     type: specific.type ?? generic.type,
-    imageUrl: specific.imageUrl ?? generic.imageUrl,
+    imageUrl: isNewHomesListing(url) ? undefined : specific.imageUrl ?? generic.imageUrl,
     postcode: specific.postcode,
     agent: specific.agent,
   };

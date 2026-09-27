@@ -5,6 +5,8 @@
 // gives the same output, matching the live product's own "Demo platform:
 // previews are generated from the URL" disclaimer.
 
+import { propertyImage } from "./propertyImages";
+
 export type Portal = "Rightmove" | "Zoopla" | "OnTheMarket" | "PrimeLocation" | "Unknown";
 
 export const propertyTypesPool = ["Detached house", "Semi-detached house", "Terraced house", "Flat", "Bungalow"];
@@ -52,7 +54,8 @@ export type FetchedProperty = MockProperty & {
 /** Asks our server to read the actual listing. Falls back to the generated
  *  preview if the portal blocks us, so pasting a link never dead-ends. */
 export async function fetchPropertyFromUrl(url: string): Promise<FetchedProperty> {
-  const fallback = { ...buildMockPropertyFromUrl(url), real: false };
+  const mocked = buildMockPropertyFromUrl(url);
+  const fallback = { ...mocked, real: false, imageUrl: propertyImage(url, mocked.type) };
   try {
     const response = await fetch(`/api/property?url=${encodeURIComponent(url)}`);
     if (!response.ok) return { ...fallback, note: "Couldn't reach the listing." };
@@ -60,6 +63,12 @@ export async function fetchPropertyFromUrl(url: string): Promise<FetchedProperty
     if (!data?.ok) {
       return { ...fallback, note: data?.error ?? "Couldn't read that listing." };
     }
+    const type = data.type ?? fallback.type;
+    // The scraper already screens out redress-scheme badges and other junk
+    // logos, but if it genuinely couldn't find a real photo on the page,
+    // show something rather than nothing - a type-matched stock photo, same
+    // as every other card in the demo.
+    const imageUrl = data.imageUrl ?? propertyImage(url, type);
     return {
       real: true,
       portal: detectPortal(url),
@@ -68,10 +77,10 @@ export async function fetchPropertyFromUrl(url: string): Promise<FetchedProperty
       beds: typeof data.beds === "number" ? data.beds : fallback.beds,
       baths: data.baths,
       price: typeof data.price === "number" ? data.price : fallback.price,
-      type: data.type ?? fallback.type,
+      type,
       postcode: data.postcode,
       agent: data.agent,
-      imageUrl: data.imageUrl,
+      imageUrl,
     };
   } catch {
     return { ...fallback, note: "Couldn't reach the listing." };
