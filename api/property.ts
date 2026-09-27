@@ -480,16 +480,28 @@ export async function scrapeProperty(url: string, debug = false): Promise<Scrape
   };
 }
 
+/** Vercel's Node runtime hands us a `Request` whose `.url` is sometimes just
+ *  the path ("/api/property?url=..."), not an absolute URL - and the `URL`
+  *  constructor throws on that. A base fixes it either way. */
+function requestUrl(request: Request): URL {
+    try {
+          return new URL(request.url);
+    } catch {
+          return new URL(request.url, "http://localhost");
+    }
+}
+
 /** Vercel serverless entry point. */
 export default async function handler(request: Request): Promise<Response> {
-  const url = new URL(request.url).searchParams.get("url");
-  if (!url) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing url parameter." }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
-  }
-  const result = await scrapeProperty(url, new URL(request.url).searchParams.has("debug"));
+    const params = requestUrl(request).searchParams;
+    const url = params.get("url");
+    if (!url) {
+          return new Response(JSON.stringify({ ok: false, error: "Missing url parameter." }), {
+                  status: 400,
+                  headers: { "content-type": "application/json" },
+          });
+    }
+    const result = await scrapeProperty(url, params.has("debug"));
   return new Response(JSON.stringify(result), {
     headers: {
       "content-type": "application/json",
