@@ -297,80 +297,119 @@ export async function scrapeProperty(url: string, debug = false): Promise<Scrape
         ? "onthemarket"
         : "generic";
 
-  // Zoopla sits behind bot protection that refuses a plain server request.
+// Zoopla sits behind bot protection that refuses a plain server request.
   // r.jina.ai is a public reader that fetches the page and hands back its
   // text; we only use it when the portal has already turned us away.
   let readerDiagnostic = "not attempted";
   async function readThroughReader(): Promise<string | null> {
-    try {
-      // No custom headers: the reader rejects requests that announce
-      // themselves as a scripted browser.
-      const response = await fetch(`https://r.jina.ai/${parsed.toString()}`);
-      const text = response.ok ? await response.text() : "";
-      readerDiagnostic = `status=${response.status} len=${text.length}`;
-      if (!response.ok) return null;
-      return text.length > 500 ? text : null;
-    } catch (e) {
-      readerDiagnostic = `threw ${(e as Error).message}`;
-      return null;
-    }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+                // No custom headers: the reader rejects requests that announce
+                // themselves as a scripted browser.
+                const response = await fetch(`https://r.jina.ai/${parsed.toString()}`, {
+                          signal: controller.signal,
+                });
+                const text = response.ok ? await response.text() : "";
+                readerDiagnostic = `status=${response.status} len=${text.length}`;
+                if (!response.ok) return null;
+                return text.length > 500 ? text : null;
+        } catch (e) {
+                readerDiagnostic = `threw ${(e as Error).message}`;
+                return null;
+        } finally {
+                clearTimeout(timer);
+        }
   }
 
-  let html = "";
-  // Set instead of `html` when the portal refused us and the reader stepped in.
-  let readerText = "";
-  try {
-    // Some portals check more than the user agent: they look for the whole
-    // set of headers a real Chrome sends, and reject anything that looks like
-    // a bare script.
-    const response = await fetch(parsed.toString(), {
-      headers: {
-        "user-agent": UA,
-        accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "accept-language": "en-GB,en;q=0.9",
-        "accept-encoding": "gzip, deflate, br",
-        "sec-ch-ua": '"Chromium";v="125", "Google Chrome";v="125", "Not.A/Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"macOS"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "none",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "cache-control": "no-cache",
-        pragma: "no-cache",
-      },
-      redirect: "follow",
-    });
-    if (!response.ok) {
-      const viaReader = response.status === 403 || response.status === 429
-        ? await readThroughReader()
-        : null;
-      if (viaReader) {
-        readerText = viaReader;
-      } else
-      return {
-        ok: false,
-        source,
-        url,
-        error:
-          response.status === 403 || response.status === 429
-            ? `${host.split(".")[0]} blocks automated reads, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`
-            : `The portal returned ${response.status}.`,
-        readerDiagnostic,
-        blocked: response.status === 403 || response.status === 429,
-      };
-    } else {
-      html = await response.text();
+    let html = "";
+    // Set instead of `html` when the portal refused us and the reader stepped in.
+    let readerText = "";
+    // Some portals (Rightmove especially) don't bother with a quick 403 - they
+    // just accept the connection and never answer, which would otherwise hang
+    // this function until Vercel kills it with a 504. A hard cutoff lets us
+    // fail fast and try the reader fallback instead, same as a 403 would.
+    const directFetchTimedOut = { timedOut: false };
+    try {
+          // Some portals check more than the user agent: they look for the whole
+          // set of headers a real Chrome sends, and reject anything that looks like
+          // a bare script.
+          const controller = new AbortController();
+          const timer = setTimeout(() => {
+                  directFetchTimedOut.timedOut = true;
+                  controller.abort();
+          }, 8000);
+          let response: Response;
+          try {
+                  response = await fetch(parsed.toString(), {
+                            headers: {
+                                        "user-agent": UA,
+                                        accept:
+                                                      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                                        "accept-language": "en-GB,en;q=0.9",
+                                        "accept-encoding": "gzip, deflate, br",
+                                        "sec-ch-ua": '"Chromium";v="125", "Google Chrome";v="125", "Not.A/Brand";v="24"',
+                                        "sec-ch-ua-mobile": "?0",
+                                        "sec-ch-ua-platform": '"macOS"',
+                                        "sec-fetch-dest": "document",
+                                        "sec-fetch-mode": "navigate",
+                                        "sec-fetch-site": "none",
+                                        "sec-fetch-user": "?1",
+                                        "upgrade-insecure-requests": "1",
+                                        "cache-control": "no-cache",
+                                        pragma: "no-cache",
+                            },
+                            redirect: "follow",
+                            signal: controller.signal,
+                  });
+          } finally {
+                  clearTimeout(timer);
+          }
+          if (!response.ok) {
+                  const viaReader = response.status === 403 || response.status === 429
+                    ? await readThroughReader()
+                            : null;
+                  if (viaReader) {
+                            readerText = viaReader;
+                  } else
+                          return {
+                                    ok: false,
+                                    source,
+                                    url,
+                                    error:
+                                                response.status === 403 || response.status === 429
+                                        ? `${host.split(".")[0]} blocks automated reads, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`
+                                                  : `The portal returned ${response.status}.`,
+                                    readerDiagnostic,
+                                    blocked: response.status === 403 || response.status === 429,
+                          };
+          } else {
+                  html = await response.text();
+          }
+    } catch (e) {
+          if (directFetchTimedOut.timedOut) {
+                  const viaReader = await readThroughReader();
+                  if (viaReader) {
+                            readerText = viaReader;
+                  } else {
+                            return {
+                                        ok: false,
+                                        source,
+                                        url,
+                                        error: `${host.split(".")[0]} took too long to respond, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`,
+                                        readerDiagnostic,
+                                        blocked: true,
+                            };
+                  }
+          } else {
+                  return {
+                            ok: false,
+                            source,
+                            url,
+                            error: `Couldn't reach the listing (${(e as Error).message}).`,
+                  };
+          }
     }
-  } catch (e) {
-    return {
-      ok: false,
-      source,
-      url,
-      error: `Couldn't reach the listing (${(e as Error).message}).`,
-    };
   }
 
   if (debug) {
