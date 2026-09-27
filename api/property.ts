@@ -14,466 +14,543 @@
 // Every result keeps the source URL so the card links back to the portal.
 
 export type ScrapedProperty = {
-    ok: boolean;
-    source: "rightmove" | "zoopla" | "onthemarket" | "generic" | "none";
-    url: string;
-    address?: string;
-    city?: string;
-    postcode?: string;
-    price?: number;
-    beds?: number;
-    baths?: number;
-    type?: string;
-    imageUrl?: string;
-    agent?: string;
-    error?: string;
-    blocked?: boolean;
-    readerDiagnostic?: string;
+  ok: boolean;
+  source: "rightmove" | "zoopla" | "onthemarket" | "generic" | "none";
+  url: string;
+  address?: string;
+  city?: string;
+  postcode?: string;
+  price?: number;
+  beds?: number;
+  baths?: number;
+  type?: string;
+  imageUrl?: string;
+  /** The agent marketing it, straight from the listing. */
+  agent?: string;
+  /** Set when we couldn't reach or read the page, so the UI can say so. */
+  error?: string;
+  /** True when the portal refused us, rather than the page being unreadable. */
+  blocked?: boolean;
+  /** Debug only: what the fallback reader did. */
+  readerDiagnostic?: string;
 };
 
 const UA =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
 
+// Portal pages carry all kinds of images that aren't the listing photo -
+// redress-scheme badges (Property Redress, TPO, ombudsman), trust logos,
+// social icons, sprites, avatars. None of those should ever end up as the
+// card's picture, so anything matching this gets thrown out wherever an
+// image URL is picked, and the caller falls back to a generated photo.
 const BAD_IMAGE_HINTS =
-    /(logo|redress|ombudsman|sprite|badge|icon|favicon|avatar|placeholder|blank|1x1|pixel|tracking|arla|tpos|naea|rics)/i;
+  /(logo|redress|ombudsman|sprite|badge|icon|favicon|avatar|placeholder|blank|1x1|pixel|tracking|arla|tpos|naea|rics)/i;
 
 function isLikelyListingPhoto(url?: string): url is string {
-    if (!url) return false;
-    if (BAD_IMAGE_HINTS.test(url)) return false;
-    const looksGeneric = /\/(shared|static|assets|common|marketing|brand)\//i.test(url);
-    if (looksGeneric) return false;
-    return /\.(jpe?g|png|webp)(\?|$)/i.test(url) || url.includes("zoocdn") || url.includes("rightmove") || url.includes("onthemarket");
+  if (!url) return false;
+  if (BAD_IMAGE_HINTS.test(url)) return false;
+  // A real listing photo comes off a photo CDN with an id-looking path -
+  // long, mostly digits/hex. A page's generic share image (which is what
+  // keeps slipping through as a trust badge or scheme logo) tends to be a
+  // short, human-named file sitting in a shared/static folder instead.
+  // New-build ("new-homes") listings are the worst offenders - they're
+  // often unphotographed and Zoopla falls back to exactly that kind of
+  // generic image - so for those we don't trust an og:image at all.
+  const looksGeneric = /\/(shared|static|assets|common|marketing|brand)\//i.test(url);
+  if (looksGeneric) return false;
+  return /\.(jpe?g|png|webp)(\?|$)/i.test(url) || url.includes("zoocdn") || url.includes("rightmove") || url.includes("onthemarket");
 }
 
 function isNewHomesListing(url: string): boolean {
-    return /\/new-homes\//i.test(url);
+  return /\/new-homes\//i.test(url);
 }
 
 function toNumber(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") {
-          const digits = value.replace(/[^0-9]/g, "");
-          if (digits) return Number(digits);
-    }
-    return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const digits = value.replace(/[^0-9]/g, "");
+    if (digits) return Number(digits);
+  }
+  return undefined;
 }
 
+/** "12 Mill Road, Headingley, Leeds LS6 3AA" -> city + postcode. */
 function splitAddress(address?: string) {
-    if (!address) return {};
-    const postcode = address.match(
-          /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i
-        )?.[0];
-    const withoutPostcode = postcode ? address.replace(postcode, "").trim() : address;
-    const parts = withoutPostcode
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean);
-    const city = parts.length > 1 ? parts[parts.length - 1] : undefined;
-    return { city, postcode: postcode?.toUpperCase().replace(/\s+/g, " ") };
+  if (!address) return {};
+  const postcode = address.match(
+    /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i
+  )?.[0];
+  const withoutPostcode = postcode ? address.replace(postcode, "").trim() : address;
+  const parts = withoutPostcode
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  // The town is usually the last comma-separated part.
+  const city = parts.length > 1 ? parts[parts.length - 1] : undefined;
+  return { city, postcode: postcode?.toUpperCase().replace(/\s+/g, " ") };
 }
 
+/** Rightmove now renders as a React stream, so the old embedded JSON object
+ *  is gone. Its share tags are better anyway: one sentence with every fact in
+ *  a fixed order.
+ *
+ *  "1 bedroom apartment for sale in Embankment Exchange, M3 for £180,000.
+ *   Marketed by RW Invest, Liverpool"
+ */
 function parseRightmove(html: string): Partial<ScrapedProperty> {
-    const description = meta(html, "og:description") ?? meta(html, "description") ?? "";
-    const title = html.match(/<title>([^<]+)<\/title>/i)?.[1] ?? "";
-    const text = description || title;
-    if (!text) return {};
+  const description = meta(html, "og:description") ?? meta(html, "description") ?? "";
+  const title = html.match(/<title>([^<]+)<\/title>/i)?.[1] ?? "";
+  const text = description || title;
+  if (!text) return {};
 
   const beds = toNumber(text.match(/^(\d+)\s+bed/i)?.[1]);
-    const type = text.match(/^\d+\s+bedroom\s+(.+?)\s+(?:for sale|to rent)/i)?.[1]
-      ?? text.match(/^(studio|land|farm)\b/i)?.[1];
-    const price = toNumber(text.match(/for\s+£([\d,]+)/i)?.[1]);
+  const type = text.match(/^\d+\s+bedroom\s+(.+?)\s+(?:for sale|to rent)/i)?.[1]
+    ?? text.match(/^(studio|land|farm)\b/i)?.[1];
+  const price = toNumber(text.match(/for\s+£([\d,]+)/i)?.[1]);
 
+  // Everything between "for sale in" and " for £" is the address, and
+  // Rightmove always ends it with the outcode.
   const addressBlock = text.match(/(?:for sale|to rent)\s+in\s+([\s\S]+?)\s+for\s+£/i)?.[1]?.trim();
-    const outcode = addressBlock?.match(/,\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/i)?.[1];
-    const address = outcode
-      ? addressBlock?.replace(/,\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/i, "").trim()
-          : addressBlock;
+  const outcode = addressBlock?.match(/,\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/i)?.[1];
+  const address = outcode
+    ? addressBlock?.replace(/,\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/i, "").trim()
+    : addressBlock;
 
   const agent = text.match(/Marketed by\s+(.+?)\.?$/i)?.[1];
 
   return {
-        address,
-        postcode: outcode?.toUpperCase(),
-        price,
-        beds,
-        type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
-        imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
-        agent,
+    address,
+    postcode: outcode?.toUpperCase(),
+    price,
+    beds,
+    type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
+    agent,
   };
 }
 
+/** Zoopla is a Next.js app, so the page ships its data as __NEXT_DATA__. */
 function parseZoopla(html: string): Partial<ScrapedProperty> {
-    const match = html.match(
-          /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
-        );
-    if (!match) return {};
-    let data: any;
-    try {
-          data = JSON.parse(match[1]);
-    } catch {
-          return {};
-    }
-    const stack: any[] = [data];
-    while (stack.length) {
-          const node = stack.pop();
-          if (!node || typeof node !== "object") continue;
-          if (node.listingId && (node.pricing || node.price) && node.address) {
-                  return {
-                            address:
-                                        typeof node.address === "string" ? node.address : node.address?.displayAddress,
-                            price: toNumber(node.pricing?.value ?? node.pricing?.label ?? node.price),
-                            beds: toNumber(node.counts?.numBedrooms ?? node.bedrooms),
-                            baths: toNumber(node.counts?.numBathrooms ?? node.bathrooms),
-                            type: node.propertyType,
-                            imageUrl: isLikelyListingPhoto(node.imageUri ?? node.images?.[0]?.url)
-                              ? (node.imageUri ?? node.images?.[0]?.url)
-                                        : undefined,
-                  };
-          }
-          for (const value of Object.values(node)) {
-                  if (value && typeof value === "object") stack.push(value);
-          }
-    }
+  const match = html.match(
+    /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
+  );
+  if (!match) return {};
+  let data: any;
+  try {
+    data = JSON.parse(match[1]);
+  } catch {
     return {};
+  }
+  // Zoopla moves this around between releases, so search rather than assume.
+  const stack: any[] = [data];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== "object") continue;
+    if (node.listingId && (node.pricing || node.price) && node.address) {
+      return {
+        address:
+          typeof node.address === "string" ? node.address : node.address?.displayAddress,
+        price: toNumber(node.pricing?.value ?? node.pricing?.label ?? node.price),
+        beds: toNumber(node.counts?.numBedrooms ?? node.bedrooms),
+        baths: toNumber(node.counts?.numBathrooms ?? node.bathrooms),
+        type: node.propertyType,
+        imageUrl: isLikelyListingPhoto(node.imageUri ?? node.images?.[0]?.url)
+          ? (node.imageUri ?? node.images?.[0]?.url)
+          : undefined,
+      };
+    }
+    for (const value of Object.values(node)) {
+      if (value && typeof value === "object") stack.push(value);
+    }
+  }
+  return {};
 }
 
+/** Share tags, which every portal publishes so links look right when shared.
+ *  Quotes vary between single and double, hence the loose pattern. */
 function meta(html: string, property: string): string | undefined {
-    return (
-          html.match(
-                  new RegExp(
-                            `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`,
-                            "i"
-                          )
-                )?.[1] ??
-          html.match(
-                  new RegExp(
-                            `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`,
-                            "i"
-                          )
-                )?.[1]
-        );
+  return (
+    html.match(
+      new RegExp(
+        `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`,
+        "i"
+      )
+    )?.[1] ??
+    html.match(
+      new RegExp(
+        `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`,
+        "i"
+      )
+    )?.[1]
+  );
 }
 
+/** OnTheMarket puts the whole thing in its title:
+ *  "Maurice Avenue, Stirling, FK7 2 bed apartment - £125,000"
+ *  and names the agent in the description:
+ *  "Halliday Homes present this 2 bedroom apartment in Maurice Avenue..." */
 function parseOnTheMarket(html: string): Partial<ScrapedProperty> {
-    const title = meta(html, "og:title") ?? "";
-    const description = meta(html, "og:description") ?? meta(html, "description") ?? "";
-    if (!title) return {};
+  const title = meta(html, "og:title") ?? "";
+  const description = meta(html, "og:description") ?? meta(html, "description") ?? "";
+  if (!title) return {};
 
   const price = toNumber(title.match(/£([\d,]+)/)?.[1]);
-    const beds = toNumber(title.match(/(\d+)\s*bed\b/i)?.[1]);
-    const type = title.match(/\d+\s*bed\s+([a-z\- ]+?)\s*(?:-|$)/i)?.[1]?.trim();
+  const beds = toNumber(title.match(/(\d+)\s*bed\b/i)?.[1]);
+  const type = title.match(/\d+\s*bed\s+([a-z\- ]+?)\s*(?:-|$)/i)?.[1]?.trim();
 
+  // The address is everything before the "N bed ..." part.
   const addressBlock = title.split(/\s+\d+\s*bed\b/i)[0]?.trim();
-    const outcode = addressBlock?.match(/,\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/i)?.[1];
-    const address = outcode
-      ? addressBlock.replace(/,\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/i, "").trim()
-          : addressBlock;
+  const outcode = addressBlock?.match(/,\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/i)?.[1];
+  const address = outcode
+    ? addressBlock.replace(/,\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/i, "").trim()
+    : addressBlock;
 
   const agent = description.match(/^(.+?)\s+present[s]?\s+this/i)?.[1];
 
   return {
-        address,
-        postcode: outcode?.toUpperCase(),
-        price,
-        beds,
-        type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
-        imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
-        agent,
+    address,
+    postcode: outcode?.toUpperCase(),
+    price,
+    beds,
+    type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
+    agent,
   };
 }
 
+/** The reader hands back plain text, and puts the whole summary on its first
+ *  line:
+ *  "Beacon Tower, Spectrum Way, London SW18, 2 bed flat for sale, £644,000 - Zoopla"
+ *  Used only for portals that refuse a direct read. */
 function parseReaderText(text: string): Partial<ScrapedProperty> {
-    const line = text.match(/^Title:\s*(.+)$/m)?.[1]?.replace(/\s*-\s*(Zoopla|Rightmove|OnTheMarket)\s*$/i, "").trim();
-    if (!line) return {};
+  const line = text.match(/^Title:\s*(.+)$/m)?.[1]?.replace(/\s*-\s*(Zoopla|Rightmove|OnTheMarket)\s*$/i, "").trim();
+  if (!line) return {};
 
   const price = toNumber(line.match(/£([\d,]+)/)?.[1]);
-    const beds = toNumber(line.match(/(\d+)\s*bed\b/i)?.[1]);
-    const type = line.match(/\d+\s*bed\s+([a-z\- ]+?)\s+(?:for sale|to rent)/i)?.[1]?.trim();
+  const beds = toNumber(line.match(/(\d+)\s*bed\b/i)?.[1]);
+  const type = line.match(/\d+\s*bed\s+([a-z\- ]+?)\s+(?:for sale|to rent)/i)?.[1]?.trim();
 
+  // Address is everything before the ", N bed ..." part.
   const addressBlock = line.split(/,\s*\d+\s*bed\b/i)[0]?.trim();
-    const outcode = addressBlock?.match(/,?\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/)?.[1];
-    const address = outcode
-      ? addressBlock.replace(/,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/, "").trim()
-          : addressBlock;
+  const outcode = addressBlock?.match(/,?\s*([A-Z]{1,2}\d[A-Z\d]?)\s*$/)?.[1];
+  const address = outcode
+    ? addressBlock.replace(/,?\s*[A-Z]{1,2}\d[A-Z\d]?\s*$/, "").trim()
+    : addressBlock;
 
+  // Bathrooms sit in the body next to the bed count.
   const baths = toNumber(text.match(/(\d+)\s*bath\b/i)?.[1]);
-    const cdnMatch = [...text.matchAll(
-          /https:\/\/[^\s)"']*(?:zoocdn|rightmove|onthemarket|akamaized|cloudfront)[^\s)"']*\.(?:jpe?g|png|webp)/gi
-        )].map((m) => m[0]).find(isLikelyListingPhoto);
-    const anyMatch = [...text.matchAll(/https:\/\/[^\s)"']+\.(?:jpe?g|png|webp)/gi)]
-      .map((m) => m[0])
-      .find(isLikelyListingPhoto);
-    const imageUrl = cdnMatch ?? anyMatch;
+  // First real photo in the page, whichever CDN the portal uses. The reader
+  // dumps the whole page as text, so trust badges (Property Redress, TPO,
+  // ombudsman logos) show up as image links too - skip past those rather
+  // than grabbing the first image link blindly.
+  const cdnMatch = [...text.matchAll(
+    /https:\/\/[^\s)"']*(?:zoocdn|rightmove|onthemarket|akamaized|cloudfront)[^\s)"']*\.(?:jpe?g|png|webp)/gi
+  )].map((m) => m[0]).find(isLikelyListingPhoto);
+  const anyMatch = [...text.matchAll(/https:\/\/[^\s)"']+\.(?:jpe?g|png|webp)/gi)]
+    .map((m) => m[0])
+    .find(isLikelyListingPhoto);
+  const imageUrl = cdnMatch ?? anyMatch;
 
   return {
-        address,
-        postcode: outcode?.toUpperCase(),
-        price,
-        beds,
-        baths,
-        type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
-        imageUrl,
+    address,
+    postcode: outcode?.toUpperCase(),
+    price,
+    beds,
+    baths,
+    type: type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined,
+    imageUrl,
   };
 }
 
+/** Works on any portal, including ones we haven't written a parser for. */
 function parseGeneric(html: string): Partial<ScrapedProperty> {
-    const title = meta(html, "og:title") ?? html.match(/<title>([^<]+)<\/title>/i)?.[1];
-    const description = meta(html, "og:description") ?? meta(html, "description");
-    const haystack = `${title ?? ""} ${description ?? ""}`;
+  const title = meta(html, "og:title") ?? html.match(/<title>([^<]+)<\/title>/i)?.[1];
+  const description = meta(html, "og:description") ?? meta(html, "description");
+  const haystack = `${title ?? ""} ${description ?? ""}`;
 
   return {
-        address: title?.replace(/\s*\|.*$/, "").trim(),
-        price: toNumber(haystack.match(/£\s?[\d,]{4,}/)?.[0]),
-        beds: toNumber(haystack.match(/(\d+)\s*(?:bed|bedroom)/i)?.[1]),
-        baths: toNumber(haystack.match(/(\d+)\s*(?:bath|bathroom)/i)?.[1]),
-        type: haystack.match(
-                /\b(detached house|semi-detached house|terraced house|end of terrace|townhouse|bungalow|maisonette|apartment|flat|studio)\b/i
-              )?.[0],
-        imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
+    address: title?.replace(/\s*\|.*$/, "").trim(),
+    price: toNumber(haystack.match(/£\s?[\d,]{4,}/)?.[0]),
+    beds: toNumber(haystack.match(/(\d+)\s*(?:bed|bedroom)/i)?.[1]),
+    baths: toNumber(haystack.match(/(\d+)\s*(?:bath|bathroom)/i)?.[1]),
+    type: haystack.match(
+      /\b(detached house|semi-detached house|terraced house|end of terrace|townhouse|bungalow|maisonette|apartment|flat|studio)\b/i
+    )?.[0],
+    imageUrl: isLikelyListingPhoto(meta(html, "og:image")) ? meta(html, "og:image") : undefined,
   };
 }
 
 export async function scrapeProperty(url: string, debug = false): Promise<ScrapedProperty> {
-    let parsed: URL;
-    try {
-          parsed = new URL(url);
-    } catch {
-          return { ok: false, source: "none", url, error: "That isn't a valid URL." };
-    }
-
-  const host = parsed.hostname.replace(/^www\./, "");
-    const source: ScrapedProperty["source"] = host.includes("rightmove")
-      ? "rightmove"
-          : host.includes("zoopla")
-        ? "zoopla"
-            : host.includes("onthemarket")
-          ? "onthemarket"
-              : "generic";
-
-  let readerDiagnostic = "not attempted";
-    async function readThroughReader(): Promise<string | null> {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 8000);
-          try {
-                  const response = await fetch(`https://r.jina.ai/${parsed.toString()}`, {
-                            signal: controller.signal,
-                  });
-                  const text = response.ok ? await response.text() : "";
-                  readerDiagnostic = `status=${response.status} len=${text.length}`;
-                  if (!response.ok) return null;
-                  return text.length > 500 ? text : null;
-          } catch (e) {
-                  readerDiagnostic = `threw ${(e as Error).message}`;
-                  return null;
-          } finally {
-                  clearTimeout(timer);
-          }
-    }
-
-  let html = "";
-    let readerText = "";
-    const directFetchTimedOut = { timedOut: false };
-    try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => {
-                  directFetchTimedOut.timedOut = true;
-                  controller.abort();
-          }, 8000);
-          let response: Response;
-          try {
-                  response = await fetch(parsed.toString(), {
-                            headers: {
-                                        "user-agent": UA,
-                                        accept:
-                                          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                                        "accept-language": "en-GB,en;q=0.9",
-                                        "accept-encoding": "gzip, deflate, br",
-                                        "sec-ch-ua": '"Chromium";v="125", "Google Chrome";v="125", "Not.A/Brand";v="24"',
-                                        "sec-ch-ua-mobile": "?0",
-                                        "sec-ch-ua-platform": '"macOS"',
-                                        "sec-fetch-dest": "document",
-                                        "sec-fetch-mode": "navigate",
-                                        "sec-fetch-site": "none",
-                                        "sec-fetch-user": "?1",
-                                        "upgrade-insecure-requests": "1",
-                                        "cache-control": "no-cache",
-                                        pragma: "no-cache",
-                            },
-                            redirect: "follow",
-                            signal: controller.signal,
-                  });
-          } finally {
-                  clearTimeout(timer);
-          }
-          if (!response.ok) {
-                  const viaReader = response.status === 403 || response.status === 429
-                    ? await readThroughReader()
-                            : null;
-                  if (viaReader) {
-                            readerText = viaReader;
-                  } else {
-                            return {
-                                        ok: false,
-                                        source,
-                                        url,
-                                        error:
-                                                      response.status === 403 || response.status === 429
-                                            ? `${host.split(".")[0]} blocks automated reads, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`
-                                                        : `The portal returned ${response.status}.`,
-                                        readerDiagnostic,
-                                        blocked: response.status === 403 || response.status === 429,
-                            };
-                  }
-          } else {
-                  html = await response.text();
-          }
-    } catch (e) {
-          if (directFetchTimedOut.timedOut) {
-                  const viaReader = await readThroughReader();
-                  if (viaReader) {
-                            readerText = viaReader;
-                  } else {
-                            return {
-                                        ok: false,
-                                        source,
-                                        url,
-                                        error: `${host.split(".")[0]} took too long to respond, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`,
-                                        readerDiagnostic,
-                                        blocked: true,
-                            };
-                  }
-          } else {
-                  return {
-                            ok: false,
-                            source,
-                            url,
-                            error: `Couldn't reach the listing (${(e as Error).message}).`,
-                  };
-          }
-    }
-
-  if (debug) {
-        return {
-                ok: false,
-                source,
-                url,
-                error: JSON.stringify({
-                          length: html.length,
-                          markers: [
-                                      "PAGE_MODEL",
-                                      "__NEXT_DATA__",
-                                      "application/ld+json",
-                                      "__PRELOADED_STATE__",
-                                      "propertyData",
-                                      "displayAddress",
-                                    ].filter((m) => html.includes(m)),
-                          title: html.match(/<title>([^<]+)<\/title>/i)?.[1],
-                          metas: [...html.matchAll(/<meta[^>]*>/g)]
-                            .map((m) => m[0])
-                            .filter((m) => /og:|twitter:|name="description"/.test(m))
-                            .slice(0, 10),
-                          h1: html.match(/<h1[^>]*>([\s\S]{0,120}?)<\/h1>/i)?.[1],
-                }),
-        };
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, source: "none", url, error: "That isn't a valid URL." };
   }
 
-  if (readerText) {
-        const fromReader = parseReaderText(readerText);
-        const { city: readerCity } = splitAddress(fromReader.address);
-        let city = readerCity;
-        if (!city && fromReader.postcode) {
-                try {
-                          const lookup = await fetch(
-                                      `https://api.postcodes.io/outcodes/${encodeURIComponent(fromReader.postcode)}`
-                                    );
-                          if (lookup.ok) {
-                                      const json: any = await lookup.json();
-                                      city = json?.result?.admin_district?.[0] ?? json?.result?.region;
-                          }
-                } catch {
-                }
-        }
-        const readable = Boolean(fromReader.address && fromReader.price);
+  const host = parsed.hostname.replace(/^www\./, "");
+  const source: ScrapedProperty["source"] = host.includes("rightmove")
+    ? "rightmove"
+    : host.includes("zoopla")
+      ? "zoopla"
+      : host.includes("onthemarket")
+        ? "onthemarket"
+        : "generic";
+
+  // Zoopla sits behind bot protection that refuses a plain server request.
+  // r.jina.ai is a public reader that fetches the page and hands back its
+  // text; we only use it when the portal has already turned us away.
+  let readerDiagnostic = "not attempted";
+  async function readThroughReader(): Promise<string | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      // No custom headers: the reader rejects requests that announce
+      // themselves as a scripted browser.
+      const response = await fetch(`https://r.jina.ai/${parsed.toString()}`, {
+        signal: controller.signal,
+      });
+      const text = response.ok ? await response.text() : "";
+      readerDiagnostic = `status=${response.status} len=${text.length}`;
+      if (!response.ok) return null;
+      return text.length > 500 ? text : null;
+    } catch (e) {
+      readerDiagnostic = `threw ${(e as Error).message}`;
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  let html = "";
+  // Set instead of `html` when the portal refused us and the reader stepped in.
+  let readerText = "";
+  // Some portals (Rightmove especially) don't bother with a quick 403 - they
+  // just accept the connection and never answer, which would otherwise hang
+  // this function until Vercel kills it with a 504. A hard cutoff lets us
+  // fail fast and try the reader fallback instead, same as a 403 would.
+  const directFetchTimedOut = { timedOut: false };
+  try {
+    // Some portals check more than the user agent: they look for the whole
+    // set of headers a real Chrome sends, and reject anything that looks like
+    // a bare script.
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      directFetchTimedOut.timedOut = true;
+      controller.abort();
+    }, 8000);
+    let response: Response;
+    try {
+      response = await fetch(parsed.toString(), {
+        headers: {
+          "user-agent": UA,
+          accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "accept-language": "en-GB,en;q=0.9",
+          "accept-encoding": "gzip, deflate, br",
+          "sec-ch-ua": '"Chromium";v="125", "Google Chrome";v="125", "Not.A/Brand";v="24"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"macOS"',
+          "sec-fetch-dest": "document",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "none",
+          "sec-fetch-user": "?1",
+          "upgrade-insecure-requests": "1",
+          "cache-control": "no-cache",
+          pragma: "no-cache",
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+      // Headers arriving is only half of it - a portal can send a fast 200
+      // and then trickle (or never finish) the body, which would otherwise
+      // hang here until Vercel's platform timeout, long after our own cutoff
+      // was meant to kick in. Keep the same clock running through the read.
+      if (response.ok) {
+        html = await response.text();
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!response!.ok) {
+      const viaReader = response!.status === 403 || response!.status === 429
+        ? await readThroughReader()
+        : null;
+      if (viaReader) {
+        readerText = viaReader;
+      } else {
         return {
-                ok: readable,
-                source,
-                url,
-                ...fromReader,
-                imageUrl: isNewHomesListing(url) ? undefined : fromReader.imageUrl,
-                city,
-                error: readable ? undefined : "Couldn't read the property details from that page.",
+          ok: false,
+          source,
+          url,
+          error:
+            response!.status === 403 || response!.status === 429
+              ? `${host.split(".")[0]} blocks automated reads, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`
+              : `The portal returned ${response!.status}.`,
+          readerDiagnostic,
+          blocked: response!.status === 403 || response!.status === 429,
         };
+      }
+    }
+  } catch (e) {
+    if (directFetchTimedOut.timedOut) {
+      const viaReader = await readThroughReader();
+      if (viaReader) {
+        readerText = viaReader;
+      } else {
+        return {
+          ok: false,
+          source,
+          url,
+          error: `${host.split(".")[0]} took too long to respond, so we can't fetch this one. Add the details yourself, or paste the same property from Rightmove or OnTheMarket.`,
+          readerDiagnostic,
+          blocked: true,
+        };
+      }
+    } else {
+      return {
+        ok: false,
+        source,
+        url,
+        error: `Couldn't reach the listing (${(e as Error).message}).`,
+      };
+    }
+  }
+
+  if (debug) {
+    return {
+      ok: false,
+      source,
+      url,
+      error: JSON.stringify({
+        length: html.length,
+        markers: [
+          "PAGE_MODEL",
+          "__NEXT_DATA__",
+          "application/ld+json",
+          "__PRELOADED_STATE__",
+          "propertyData",
+          "displayAddress",
+        ].filter((m) => html.includes(m)),
+        title: html.match(/<title>([^<]+)<\/title>/i)?.[1],
+        metas: [...html.matchAll(/<meta[^>]*>/g)]
+          .map((m) => m[0])
+          .filter((m) => /og:|twitter:|name="description"/.test(m))
+          .slice(0, 10),
+        h1: html.match(/<h1[^>]*>([\s\S]{0,120}?)<\/h1>/i)?.[1],
+      }),
+    };
+  }
+
+  // The reader path returns text, not markup, so it has its own parser.
+  if (readerText) {
+    const fromReader = parseReaderText(readerText);
+    const { city: readerCity } = splitAddress(fromReader.address);
+    let city = readerCity;
+    if (!city && fromReader.postcode) {
+      try {
+        const lookup = await fetch(
+          `https://api.postcodes.io/outcodes/${encodeURIComponent(fromReader.postcode)}`
+        );
+        if (lookup.ok) {
+          const json: any = await lookup.json();
+          city = json?.result?.admin_district?.[0] ?? json?.result?.region;
+        }
+      } catch {
+        // Not worth failing the import over.
+      }
+    }
+    const readable = Boolean(fromReader.address && fromReader.price);
+    return {
+      ok: readable,
+      source,
+      url,
+      ...fromReader,
+      imageUrl: isNewHomesListing(url) ? undefined : fromReader.imageUrl,
+      city,
+      error: readable ? undefined : "Couldn't read the property details from that page.",
+    };
   }
 
   const specific =
-        source === "onthemarket"
-        ? parseOnTheMarket(html)
-          : source === "zoopla"
-          ? { ...parseZoopla(html), ...parseRightmove(html) }
-            : parseRightmove(html);
+    source === "onthemarket"
+      ? parseOnTheMarket(html)
+      : source === "zoopla"
+        ? { ...parseZoopla(html), ...parseRightmove(html) }
+        : parseRightmove(html);
 
+  // Fall back field by field, so a partial specific parse still wins where it
+  // has a value and the generic tags fill the gaps.
   const generic = parseGeneric(html);
-    const merged: Partial<ScrapedProperty> = {
-          address: specific.address ?? generic.address,
-          price: specific.price ?? generic.price,
-          beds: specific.beds ?? generic.beds,
-          baths: specific.baths ?? generic.baths,
-          type: specific.type ?? generic.type,
-          imageUrl: isNewHomesListing(url) ? undefined : specific.imageUrl ?? generic.imageUrl,
-          postcode: specific.postcode,
-          agent: specific.agent,
-    };
+  const merged: Partial<ScrapedProperty> = {
+    address: specific.address ?? generic.address,
+    price: specific.price ?? generic.price,
+    beds: specific.beds ?? generic.beds,
+    baths: specific.baths ?? generic.baths,
+    type: specific.type ?? generic.type,
+    imageUrl: isNewHomesListing(url) ? undefined : specific.imageUrl ?? generic.imageUrl,
+    postcode: specific.postcode,
+    agent: specific.agent,
+  };
 
   let { city, postcode } = splitAddress(merged.address);
 
+  // postcodes.io is free, public and needs no key. It turns "M3" into
+  // "Manchester", which is the one fact the listing itself doesn't spell out.
   const outcode = merged.postcode ?? postcode;
-    if (!city && outcode) {
-          try {
-                  const lookup = await fetch(
-                            `https://api.postcodes.io/outcodes/${encodeURIComponent(outcode.split(" ")[0])}`
-                          );
-                  if (lookup.ok) {
-                            const json: any = await lookup.json();
-                            city = json?.result?.admin_district?.[0] ?? json?.result?.region;
-                  }
-          } catch {
-          }
+  if (!city && outcode) {
+    try {
+      const lookup = await fetch(
+        `https://api.postcodes.io/outcodes/${encodeURIComponent(outcode.split(" ")[0])}`
+      );
+      if (lookup.ok) {
+        const json: any = await lookup.json();
+        city = json?.result?.admin_district?.[0] ?? json?.result?.region;
+      }
+    } catch {
+      // Not worth failing the import over.
     }
+  }
 
   const ok = Boolean(merged.address && merged.price);
-    return {
-          ok,
-          source,
-          url,
-          ...merged,
-          city,
-          postcode: merged.postcode ?? postcode,
-          error: ok ? undefined : "Couldn't read the property details from that page.",
-    };
+  return {
+    ok,
+    source,
+    url,
+    ...merged,
+    city,
+    postcode: merged.postcode ?? postcode,
+    error: ok ? undefined : "Couldn't read the property details from that page.",
+  };
 }
 
+/** Vercel's Node runtime hands us a `Request` whose `.url` is sometimes just
+ *  the path ("/api/property?url=..."), not an absolute URL - and the `URL`
+ *  constructor throws on that. A base fixes it either way. */
 function requestUrl(request: Request): URL {
-    try {
-          return new URL(request.url);
-    } catch {
-          return new URL(request.url, "http://localhost");
-    }
+  try {
+    return new URL(request.url);
+  } catch {
+    return new URL(request.url, "http://localhost");
+  }
 }
 
+/** Vercel serverless entry point. */
 export default async function handler(request: Request): Promise<Response> {
-    const params = requestUrl(request).searchParams;
-    const url = params.get("url");
-    if (!url) {
-          return new Response(JSON.stringify({ ok: false, error: "Missing url parameter." }), {
-                  status: 400,
-                  headers: { "content-type": "application/json" },
-          });
-    }
-    const result = await scrapeProperty(url, params.has("debug"));
-    return new Response(JSON.stringify(result), {
-          headers: {
-                  "content-type": "application/json",
-                  "cache-control": "public, max-age=600",
-          },
+  const params = requestUrl(request).searchParams;
+  const url = params.get("url");
+  if (!url) {
+    return new Response(JSON.stringify({ ok: false, error: "Missing url parameter." }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
     });
+  }
+  const result = await scrapeProperty(url, params.has("debug"));
+  return new Response(JSON.stringify(result), {
+    headers: {
+      "content-type": "application/json",
+      // Same listing pasted twice in a session shouldn't hit the portal twice.
+      "cache-control": "public, max-age=600",
+    },
+  });
 }
