@@ -44,8 +44,14 @@ export default function Footer() {
               Contact Us
             </p>
             <div className="mt-4 space-y-2 text-sm text-brand-muted">
-              <p>support@buynidify.com</p>
-              <p>+44 20 7946 0958</p>
+              <p>
+                <a
+                  href="mailto:andrew.bulat@buynidify.com"
+                  className="hover:text-brand-blue"
+                >
+                  andrew.bulat@buynidify.com
+                </a>
+              </p>
             </div>
             <div className="mt-4 flex gap-3">
               <a
@@ -63,7 +69,9 @@ export default function Footer() {
                 <TwitterIcon />
               </a>
               <a
-                href="#"
+                href="https://www.linkedin.com/in/andrew-bulat-94625ab6/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-8 w-8 items-center justify-center rounded-full border border-brand-border text-brand-blue transition-colors hover:border-brand-blue"
                 aria-label="LinkedIn"
               >
