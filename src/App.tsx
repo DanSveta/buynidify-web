@@ -9,7 +9,7 @@ import Corporate from "./pages/Corporate";
 import About from "./pages/About";
 import PropertyPage from "./pages/PropertyPage";
 import JourneyOptions from "./pages/JourneyOptions";
-import RelocateAI from "./pages/RelocateAI";
+import RelocateAI from "./relocate/RelocateApp";
 import AppLayout from "./app/AppLayout";
 import { RoleProvider } from "./app/context/RoleContext";
 import { ThemeProvider } from "./app/context/ThemeContext";
